@@ -1,0 +1,48 @@
+use anyhow::Result;
+
+use util::IdVec;
+use workflow::{BranchStrs, IdentId, RealInput, RealOutputOrParam, RealValueId, Workflow};
+
+use super::{bfs, cleanup, Node, RealTaskKey};
+
+// unlikely we'll ever have more than 255 roots, but we can increase this in future if needed:
+type RootCount = u8;
+
+/// Represents a specific traversal through the tasks in the workflow.
+/// At this time, we only allow a single, simple plan as the goal for a traversal,
+/// with a single task, but we will allow more complex plans in the future.
+pub struct Traversal {
+    /// ordered list of resolved nodes
+    pub nodes: Vec<Node>,
+    /// arena of input values
+    pub inputs: IdVec<RealValueId, RealInput>,
+    /// arena of output and param values (they have the same type constraints)
+    pub outputs_params: IdVec<RealValueId, RealOutputOrParam>,
+    /// number of root nodes (so we know when to stop looking for them)
+    pub num_roots: RootCount,
+    /// store string representations of branches as we go:
+    pub branch_strs: BranchStrs,
+}
+
+impl Traversal {
+    /// Create a new workflow traversal terminating with the tasks defined in the given `plan`.
+    pub fn create(wf: &Workflow, plan: IdentId, verbose: bool) -> Result<Self> {
+        let plan = wf.get_plan(plan)?;
+
+        let goal = RealTaskKey {
+            abstract_task_id: plan.goal,
+            branch: plan.branch.clone(),
+        };
+
+        // do initial pathing:
+        let mut traverser = bfs::BfsTraverser::new(wf, verbose);
+        traverser.traverse(goal)?;
+
+        // clean up:
+        let mut traversal = traverser.into_traversal();
+        cleanup::reverse(&mut traversal);
+        cleanup::clean_branches(&mut traversal, wf, verbose)?;
+
+        Ok(traversal)
+    }
+}

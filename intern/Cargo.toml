@@ -1,0 +1,15 @@
+[package]
+name = "heron-rebuild-intern"
+description = "String interners for use in heron-rebuild"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+rustc-hash = { workspace = true }
+hashbrown = { workspace = true }

@@ -1,0 +1,15 @@
+[package]
+name = "heron-rebuild-syntax"
+description = ".hr file syntax and parsers for use in heron-rebuild"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+combine = { workspace = true }
+rustc-hash = { workspace = true }

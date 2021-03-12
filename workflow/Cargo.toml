@@ -1,0 +1,20 @@
+[package]
+name = "heron-rebuild-workflow"
+description = "Workflow definition types for heron-rebuild"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+syntax = { workspace = true }
+intern = { workspace = true }
+util = { workspace = true }
+
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+rustc-hash = { workspace = true }
+colored = { workspace = true }

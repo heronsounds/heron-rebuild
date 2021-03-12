@@ -1,0 +1,18 @@
+[package]
+name = "heron-rebuild-traverse"
+description = "Workflow graph traversal utilities for heron-rebuild"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+util = { workspace = true }
+workflow = { workspace = true }
+intern = { workspace = true }
+
+anyhow = { workspace = true }
+log = { workspace = true }
+colored = { workspace = true }

@@ -1,0 +1,13 @@
+[package]
+name = "heron-rebuild-util"
+description = "Utilities for heron-rebuild"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+rustc-hash = { workspace = true }

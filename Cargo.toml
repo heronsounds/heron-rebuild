@@ -1,0 +1,69 @@
+[package]
+name = "heron-rebuild"
+description = "Workflow runner for complex build commands"
+keywords = ["workflow"]
+categories = ["development-tools"]
+readme = "README.md"
+exclude = ["/.*", "/justfile"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[[bin]]
+name = "hr"
+bench = false
+path = "src/main.rs"
+
+[profile.release]
+strip = "debuginfo"
+
+[workspace]
+members = ["syntax", "intern", "workflow", "util", "traverse"]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Heron Sounds <contact@heronsounds.com>"]
+license = "MPL-2.0"
+edition = "2021"
+repository = "https://github.com/heronsounds/heron-rebuild.git"
+homepage = "https://github.com/heronsounds/heron-rebuild.git"
+
+[workspace.dependencies]
+syntax =    { version = "0.1.0", path = "syntax", package = "heron-rebuild-syntax" }
+intern =    { version = "0.1.0", path = "intern", package = "heron-rebuild-intern" }
+util =      { version = "0.1.0", path = "util", package = "heron-rebuild-util" }
+workflow =  { version = "0.1.0", path = "workflow", package = "heron-rebuild-workflow" }
+
+anyhow = "1.0"
+thiserror = "1.0"
+combine = "4.5"
+rustc-hash = "1.1"
+hashbrown = "0.14"
+log = "0.4"
+colored = "2.1"
+
+[dependencies]
+syntax = { workspace = true }
+intern = { workspace = true }
+util = { workspace = true }
+workflow = { workspace = true }
+
+# non-workspace internal dependencies:
+traverse = { version = "0.1.0", path = "traverse", package = "heron-rebuild-traverse" }
+
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+hashbrown = { workspace = true }
+rustc-hash = { workspace = true }
+colored = { workspace = true }
+log = { workspace = true }
+
+# non-workspace external dependencies:
+simple-logging = "2.0"
+clap = { version = "4.5", features = ["derive", "env"] }
+
+[dev-dependencies]
+tempfile = "3.10"

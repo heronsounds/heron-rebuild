@@ -1,0 +1,191 @@
+plan debug {
+    reach productbuild via (Profile: debug)
+}
+
+plan release {
+    reach productbuild via (Profile: release)
+}
+
+plan lipo {
+    reach productbuild via (Profile: debug) * (Lipo: yes)
+}
+
+plan win {
+    reach package_vst_win via (Profile: debug)
+}
+
+module cargo=/Users/me/code/heron-core
+module xcode=/Users/me/code/aspik_universal/myprojects/PGS-1/mac_build
+module meson=/Users/me/code/meson-test/pgs-1-win
+
+global {
+    macos_sdk="macosx11.1"
+    macos_deployment_target="10.15"
+
+    cargo_profile=(Profile: debug release)
+    cargo_release_flag=(Profile: debug="" release="--release")
+
+    cargo_target=(Arch:
+        x64=x86_64-apple-darwin
+        arm=aarch64-apple-darwin
+    )
+    cross_target=(Arch:
+        x64=x86_64-pc-windows-msvc
+        arm=aarch64-pc-windows-msvc
+    )
+
+    cargo_dylib_name=libcharmer.dylib
+    cargo_dll_name=charmer.dll
+
+    xcode_scheme=(Framework: au="PGS-1_AU" vst="PGS-1_VST")
+    xcode_lib_name=$xcode_scheme
+    xcode_config=(Profile: debug=Debug release=Release)
+    xcode_build_dir=(Framework: au="AU" vst="VST3")
+    bundle_suffix=(Framework: au="component" vst="vst3")
+
+    bundle_name=(Framework: au="PGS-1_AU.component" vst="PGS-1_VST.vst3")
+
+    plugin_install_dir=(Framework:
+        au=/Library/Audio/Plug-Ins/Components
+        vst=/Library/Audio/Plug-Ins/VST3
+    )
+
+    pkg_id=(Framework:
+        au=com.heronsounds.pgs-1.au
+        vst=com.heronsounds.pgs-1.vst3
+    )
+
+    # unfortunate code duplication of cargo dir here;
+    # would like to add a feature to pull resources out of module dirs:
+    cargo_dir=/Users/me/code/heron-core
+    aspik_license="$cargo_dir/resources/LICENSE.ASPiK.md"
+    distribution_xml="$cargo_dir/resources/Distribution.xml"
+}
+
+task cbindgen @cargo
+    > headers
+{
+    cbindgen --crate heron-core -c cbindgen.toml -o headers/heron-core-midi.h
+    cbindgen --crate charmer -c cbindgen.toml -o headers/charmer.h
+}
+
+### MAC BUILD ###
+task cargo_build @cargo
+    > dylib="target/$cargo_target/$cargo_profile/$cargo_dylib_name"
+    :: release_flag=$cargo_release_flag
+    :: target=$cargo_target
+    :: macos_sdk=@
+    :: macos_deployment_target=@
+{
+    export SDKROOT="$(xcrun -sdk $macos_sdk --show-sdk-path)"
+    export MACOSX_DEPLOYMENT_TARGET=$macos_deployment_target
+    cargo build $release_flag --target $target -p charmer
+}
+
+task lipo
+    < lib_x64=$dylib@cargo_build[Arch: x64]
+    < lib_arm=$dylib@cargo_build[Arch: arm]
+    > lib=$cargo_dylib_name
+{
+    lipo $lib_x64 $lib_arm -output $lib -create
+}
+
+task xcodebuild @xcode
+    < lib=(Lipo: no=$dylib@cargo_build yes=$lib@lipo)
+    > bundle="$xcode_build_dir/$xcode_config/$xcode_scheme.$bundle_suffix"
+    :: xcode_scheme=@
+    :: xcode_config=@
+{
+    lib_dir="$(dirname $lib)"
+    xcodebuild \
+        -scheme $xcode_scheme \
+        -configuration $xcode_config \
+        LIBRARY_SEARCH_PATHS=$lib_dir \
+        build
+}
+
+task make_mac_bundle
+    < rustlib=(Lipo: no=$dylib@cargo_build yes=$lib@lipo)
+    < xcode_bundle=$bundle@xcodebuild
+    > bundle=$bundle_name
+    :: xcode_lib_name=@
+    :: cargo_dylib_name=@
+{
+    cp -r $xcode_bundle $bundle
+
+    mkdir -p $bundle/Contents/Frameworks
+    cp $rustlib $bundle/Contents/Frameworks/
+
+    old_path="$(otool -X -D "$rustlib")"
+    new_path="@loader_path/../Frameworks/$cargo_dylib_name"
+    install_name_tool -change "$old_path" "$new_path" "$bundle/Contents/MacOS/$xcode_lib_name"
+
+    codesign --force -s - $bundle/Contents/Frameworks/$cargo_dylib_name
+    codesign --force -s - $bundle/Contents/MacOS/$xcode_lib_name
+}
+
+task pkgbuild
+    < input=$bundle@make_mac_bundle
+    > pkg=(Framework: au=pgs-1-au.pkg vst=pgs-1-vst.pkg)
+    :: plugin_install_dir=@
+    :: bundle_suffix=@
+    :: pkg_id=@
+{
+    mkdir root
+    cp -r $input root/
+    pkgbuild --identifier $pkg_id --root root --install-location $plugin_install_dir $pkg
+}
+
+task productbuild
+    < au_pkg=$pkg@pkgbuild[Framework: au]
+    < vst_pkg=$pkg@pkgbuild[Framework: vst]
+    > pkg=pgs-1.pkg
+    :: aspik_license=@
+    :: distribution_xml=@
+{
+    mkdir root
+    cp $au_pkg root/
+    cp $vst_pkg root/
+
+    cp $distribution_xml .
+    cp $aspik_license .
+
+    productbuild --distribution Distribution.xml --package-path root $pkg
+}
+
+### WINDOWS BUILD ###
+task cross_build @cargo
+    > dll="target/$cross_target/$cargo_profile/$cargo_dll_name"
+    > lib="target/$cross_target/$cargo_profile/$cargo_dll_name.lib"
+    :: release_flag=$cargo_release_flag
+    :: profile=$cargo_profile
+    :: target=$cross_target
+{
+    cross build $release_flag --target $target -p charmer
+}
+
+task meson_build @meson
+    < rustlib=$dll@cross_build
+    > dll=build-llvm-win/libpgs-1-win-vst.dll
+    :: meson_dir=/Users/me/code/meson-test/pgs-1-win
+{
+    rustlibdir=$(dirname $rustlib)
+    meson configure build-llvm-win -Drustlibdir=$rustlibdir
+
+    meson compile -C build-llvm-win || true
+    # first attempt to compile will fail due to bad linker args, correct and try again:
+    sed -i -e 's/-Wl,-undefined,dynamic_lookup //g' build-llvm-win/build.ninja
+    meson compile -C build-llvm-win
+}
+
+task package_vst_win
+    < rust_dll=$dll@cross_build
+    < rust_lib=$lib@cross_build
+    < dll=@meson_build
+    > bundle
+{
+    mkdir -p $bundle/Contents/x86_64-win
+    cp $dll $bundle/Contents/x86_64-win/charmer.vst3
+    cp $rust_dll $bundle/Contents/x86_64-win/charmer.dll
+    cp $rust_lib $bundle/Contents/x86_64-win/charmer.dll.lib
+}

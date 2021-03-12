@@ -1,0 +1,11 @@
+plan basic {
+	reach replace_text via (Foo: bar)
+}
+
+task write_text > output=write_text_output.txt {
+	echo "foo" > $output
+}
+
+task replace_text < input=$output@write_text > output=replace_text_output.txt {
+	cat $input | sed 's/foo/bar/' > $output
+}
