@@ -10,6 +10,13 @@ use super::Error;
 /// Baseline can mean either that the branch was unspecified, or that it was
 /// specifically intended to be baseline, depending on the use case.
 /// This ambiguity is something we should clean up eventually.
+//
+// TODO i thk we need a new id space for branches, and then we can just store
+// a vec that acts as a branch id -> ident id mapping for each branch.
+// then we can start using bitmasks for branch specs (since all the branch ids
+// will cluster close to 0, instead of being spread out like ident ids),
+// and we can use bitwise operations to deal with hyperbranches.
+// might even put branchpoint names into idents at that point, too.
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
 pub struct BranchSpec {
     branches: IdVec<BranchpointId, IdentId>,

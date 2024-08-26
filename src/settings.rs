@@ -14,15 +14,6 @@ pub enum Error {
     ConfigHasNoParent,
 }
 
-/// Action that should be taken by this command line invocation.
-#[derive(Debug)]
-pub enum Action {
-    /// Default action: run the plan specified w/ -p.
-    RunPlan(String),
-    /// Invalidate pre-run target if -x|--invalidate specified.
-    Invalidate,
-}
-
 /// Representation of '-b' and '-B' arg values
 #[derive(Debug)]
 pub enum ArgsBranch {
@@ -42,10 +33,14 @@ pub struct Settings {
     pub output: PathBuf,
     pub yes: bool,
     pub verbose: bool,
-    pub action: Action,
     pub branches: ArgsBranch,
     pub tasks: Vec<String>,
     pub dry_run: bool,
+
+    pub invalidate: bool,
+    pub run: bool,
+
+    pub plan: Option<String>,
 }
 
 impl Settings {
@@ -53,22 +48,6 @@ impl Settings {
     pub fn config_parent_dir(&self) -> Result<&Path, Error> {
         let parent_dir = self.config.parent().ok_or(Error::ConfigHasNoParent)?;
         Ok(parent_dir)
-    }
-}
-
-// only used for testing:
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            config: PathBuf::from("x"),
-            output: PathBuf::from("x"),
-            yes: true,
-            verbose: true,
-            action: Action::RunPlan(String::from("x")),
-            branches: ArgsBranch::Empty,
-            tasks: Vec::with_capacity(0),
-            dry_run: false,
-        }
     }
 }
 
@@ -93,22 +72,26 @@ impl TryFrom<Args> for Settings {
             branches = ArgsBranch::Specified(inner);
         }
 
-        let action = if args.invalidate {
-            Action::Invalidate
-        } else {
-            let plan = args.plan.ok_or(Error::NoPlanSpecified)?;
-            Action::RunPlan(plan)
-        };
+        // figure out which actions to take.
+        // for now, we invalidate if invalidate is specified, run otherwise.
+        // in the future we will allow to do both or neither w/ different combinations.
+        // TODO add a "run" flag to explicitly run when -x is specified.
+        let invalidate = args.invalidate;
+        let run = !args.invalidate;
 
         Ok(Self {
             config: Path::new(&args.config).canonicalize()?,
             output: Path::new(&args.output).canonicalize()?,
-            action,
             yes: args.yes,
             verbose: args.verbose,
             branches,
             tasks: args.tasks,
             dry_run: args.dry_run,
+
+            invalidate,
+            run,
+
+            plan: args.plan,
         })
     }
 }

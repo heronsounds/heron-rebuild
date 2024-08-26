@@ -180,6 +180,7 @@ impl Workflow {
         if let ast::Rhs::Literal { val } = path {
             let mut path = PathBuf::from(val);
             // if path is relative, it is relative to the config_dir:
+            // TODO! this fails cryptically if the module dir doesn't exist!
             if path.is_relative() {
                 path = config_dir.join(path).canonicalize()?;
             }

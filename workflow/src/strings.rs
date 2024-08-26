@@ -46,7 +46,7 @@ impl Default for WorkflowStrings {
 }
 
 impl WorkflowStrings {
-    /// Allocate space fornew strings created during traversal:
+    /// Allocate space for new strings created during traversal:
     pub fn alloc_for_traversal(&mut self) {
         // placeholder
     }
@@ -69,6 +69,14 @@ impl WorkflowStrings {
         let k = self.branchpoints.intern(branchpoint);
         let v = self.idents.intern(branchval);
         self.baselines.add(k, v);
+    }
+
+    pub fn add_branchpoint(&mut self, branchpoint: &str) -> BranchpointId {
+        self.branchpoints.intern(branchpoint)
+    }
+
+    pub fn add_branch(&mut self, _branchpoint: BranchpointId, branch_name: &str) -> IdentId {
+        self.idents.intern(branch_name)
     }
 }
 

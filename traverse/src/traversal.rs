@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use util::IdVec;
-use workflow::{BranchStrs, IdentId, RealInput, RealOutputOrParam, RealValueId, Workflow};
+use workflow::{BranchStrs, RealInput, RealOutputOrParam, RealValueId, Workflow, Plan};
 
 use super::{bfs, cleanup, Node, RealTaskKey};
 
@@ -26,19 +26,25 @@ pub struct Traversal {
 
 impl Traversal {
     /// Create a new workflow traversal terminating with the tasks defined in the given `plan`.
-    pub fn create(wf: &Workflow, plan: IdentId, verbose: bool) -> Result<Self> {
-        let plan = wf.get_plan(plan)?;
+    pub fn create(wf: &Workflow, plan: Plan, verbose: bool) -> Result<Self> {
+        // let plan = wf.get_plan(plan)?;
 
-        let goal = RealTaskKey {
-            abstract_task_id: plan.goal,
-            branch: plan.branch.clone(),
-        };
-
-        // do initial pathing:
         let mut traverser = bfs::BfsTraverser::new(wf, verbose);
-        traverser.traverse(goal)?;
+
+        for goal in &plan.goals {
+            for branch in &plan.branches {
+                let goal = RealTaskKey {
+                    abstract_task_id: *goal,
+                    branch: branch.clone(),
+                };
+                traverser.traverse(goal)?;
+            }
+        }
 
         // clean up:
+        // TODO there's a bug w/ multiple goal nodes right now,
+        // where we end up with an extra task w/ some branches unspecified...
+        // recreate it by adding cargo_build to au plan in find_fix...
         let mut traversal = traverser.into_traversal();
         cleanup::reverse(&mut traversal);
         cleanup::clean_branches(&mut traversal, wf, verbose)?;

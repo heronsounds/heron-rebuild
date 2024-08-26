@@ -24,7 +24,7 @@ strip = "debuginfo"
 members = ["syntax", "intern", "workflow", "util", "traverse"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Heron Sounds <contact@heronsounds.com>"]
 license = "MPL-2.0"
 edition = "2021"
@@ -32,10 +32,10 @@ repository = "https://github.com/heronsounds/heron-rebuild.git"
 homepage = "https://github.com/heronsounds/heron-rebuild.git"
 
 [workspace.dependencies]
-syntax =    { version = "0.1.0", path = "syntax", package = "heron-rebuild-syntax" }
-intern =    { version = "0.1.0", path = "intern", package = "heron-rebuild-intern" }
-util =      { version = "0.1.0", path = "util", package = "heron-rebuild-util" }
-workflow =  { version = "0.1.0", path = "workflow", package = "heron-rebuild-workflow" }
+syntax =    { version = "0.2.0", path = "syntax", package = "heron-rebuild-syntax" }
+intern =    { version = "0.2.0", path = "intern", package = "heron-rebuild-intern" }
+util =      { version = "0.2.0", path = "util", package = "heron-rebuild-util" }
+workflow =  { version = "0.2.0", path = "workflow", package = "heron-rebuild-workflow" }
 
 anyhow = "1.0"
 thiserror = "1.0"
@@ -52,7 +52,7 @@ util = { workspace = true }
 workflow = { workspace = true }
 
 # non-workspace internal dependencies:
-traverse = { version = "0.1.0", path = "traverse", package = "heron-rebuild-traverse" }
+traverse = { version = "0.2.0", path = "traverse", package = "heron-rebuild-traverse" }
 
 thiserror = { workspace = true }
 anyhow = { workspace = true }

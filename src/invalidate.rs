@@ -12,21 +12,27 @@ use crate::settings::Settings;
 use crate::ui::Ui;
 
 /// Logic for invalidating tasks from previous executions.
-pub struct Invalidator {
-    fs: Fs,
-    ui: Ui,
-    settings: Settings,
+pub struct Invalidator<'a> {
+    fs: &'a Fs,
+    ui: &'a Ui,
+    settings: &'a Settings,
 }
 
-impl Invalidator {
+impl<'a> Invalidator<'a> {
     /// Create a new `Invalidator`.
-    pub fn new(settings: Settings, ui: Ui, fs: Fs) -> Self {
+    pub fn new(settings: &'a Settings, ui: &'a Ui, fs: &'a Fs) -> Self {
         Self { settings, ui, fs }
     }
+}
 
+impl Invalidator<'_> {
     /// Invalidate tasks from `wf`, using the targets defined in settings.
     pub fn invalidate(&self, wf: &mut Workflow) -> Result<()> {
         use crate::settings::ArgsBranch;
+
+        if self.settings.tasks.is_empty() {
+            eprintln!("No tasks specified; quitting.");
+        }
 
         let mut pathbuf = PathBuf::with_capacity(256);
         match &self.settings.branches {

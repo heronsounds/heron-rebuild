@@ -1,7 +1,12 @@
 use anyhow::Result;
-use hr::{App, Args};
+use heron_rebuild::{App, Args};
 use std::path::PathBuf;
 use tempfile::tempdir;
+use std::sync::{LazyLock, Mutex};
+
+static MODULE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| {
+    Mutex::default()
+});
 
 fn basic_args(output: String) -> Args {
     Args {
@@ -24,6 +29,16 @@ fn stringify_dir(dir: &tempfile::TempDir) -> String {
 
 fn run_basic() -> Result<tempfile::TempDir> {
     simple_logging::log_to_stderr(log::LevelFilter::Trace);
+
+    // have to create module dir if it doesn't exist, but only once:
+    {
+        let _lock = MODULE_LOCK.lock();
+        let module_dir = PathBuf::from("examples/test-module");
+        if !module_dir.exists() {
+            std::fs::create_dir(&module_dir)?;
+        }
+    }
+
     let output = tempdir()?;
     let mut args = basic_args(stringify_dir(&output));
 

@@ -968,7 +968,7 @@ mod plan {
     p! {
         branches() -> Branches<'a>, {
             char('*').map(|_| Branches::Glob).or(
-                sep_by1(lex(ident()), whitespace())
+                many1(lex(ident()))
                 .map(Branches::Specified)
             )
         }
@@ -1038,6 +1038,13 @@ mod plan {
                 },
                 plan().easy_parse("plan plan {\n  reach task\n}").unwrap().0
             );
+        }
+        #[test]
+        fn test_branches() {
+            assert_eq!(Branches::Glob, branches().easy_parse("*").unwrap().0);
+            assert_eq!(Branches::Specified(vec!["val"]), branches().easy_parse("val").unwrap().0);
+            assert_eq!(Branches::Specified(vec!["v1", "v2"]), branches().easy_parse("v1 v2").unwrap().0);
+            // TODO add more here to test full plan syntax
         }
     }
 }

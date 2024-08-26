@@ -68,7 +68,7 @@ impl Ui {
 
     pub fn verbose_progress(&self, msg: &str) {
         if self.verbose {
-            eprint!("{}...", msg.magenta());
+            eprint!("{}... ", msg.magenta());
         }
     }
 
@@ -80,7 +80,7 @@ impl Ui {
 
     pub fn verbose_progress_debug<T: std::fmt::Debug>(&self, msg: &str, arg: T) {
         if self.verbose {
-            eprint!("{} {:?}...", msg.magenta(), arg);
+            eprint!("{} {:?}... ", msg.magenta(), arg);
         }
     }
 

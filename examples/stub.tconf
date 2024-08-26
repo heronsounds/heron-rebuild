@@ -14,9 +14,9 @@ plan win {
     reach package_vst_win via (Profile: debug)
 }
 
-module cargo=pgs-1
-module xcode=pgs-1
-module meson=pgs-1
+module cargo=./test-module
+module xcode=./test-module
+module meson=./test-module
 
 global {
     macos_sdk="macosx11.1"
@@ -55,7 +55,7 @@ global {
         vst=com.heronsounds.pgs-1.vst3
     )
 
-    cargo_dir=/dev/null  # scrubbed for privacy
+    cargo_dir=/dev/null
     aspik_license="$cargo_dir/resources/LICENSE.ASPiK.md"
     distribution_xml="$cargo_dir/resources/Distribution.xml"
 }
@@ -78,6 +78,7 @@ task cargo_build @cargo
     export SDKROOT="$(xcrun -sdk $macos_sdk --show-sdk-path)"
     export MACOSX_DEPLOYMENT_TARGET=$macos_deployment_target
     # cargo build $release_flag --target $target -p charmer
+    mkdir -p $(dirname $dylib)
     touch $dylib
 }
 
@@ -123,7 +124,7 @@ task make_mac_bundle
 
     # codesign --force -s - $bundle/Contents/Frameworks/$cargo_dylib_name
     # codesign --force -s - $bundle/Contents/MacOS/$xcode_lib_name
-    touch $bundle
+    mkdir -p $bundle
 }
 
 task pkgbuild

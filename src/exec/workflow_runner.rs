@@ -101,7 +101,8 @@ impl WorkflowRunner {
 
             self.ui.print_elapsed("Task execution")?;
 
-            eprintln!("{}. Writing exit_code file.\n", "Task succeeded".green());
+            eprintln!("{} {task_str}. Writing exit_code file.\n", "COMPLETED".green());
+            // eprintln!("{}. Writing exit_code file.\n", "Task succeeded".green());
             let exit_code = self
                 .fs
                 .exit_code(realization_dir.as_ref(), &mut self.pathbuf);
