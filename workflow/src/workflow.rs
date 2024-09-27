@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use intern::{GetStr, InternStr};
 use syntax::ast;
-use util::{HashMap, Hasher, IdVec, PathEncodingError};
+use util::{Bitmask, HashMap, Hasher, IdVec, PathEncodingError};
 
 use crate::{
     AbstractTaskId, AbstractValueId, BranchMasks, BranchSpec, Error, IdentId, LiteralId, ModuleId,
@@ -23,13 +23,21 @@ pub struct SizeHints {
 /// in a form that can be used to generate a traversal to run.
 #[derive(Debug)]
 pub struct Workflow {
+    /// All strings defined in the config file
     pub strings: WorkflowStrings,
+    /// lookup global config values by name
     config: HashMap<IdentId, AbstractValueId>,
+    /// all tasks defined in the config file
     tasks: IdVec<AbstractTaskId, Task>,
+    /// all plans defined in the config file
     plans: Vec<(IdentId, Plan)>,
+    /// all modules defined in the config file
     modules: IdVec<ModuleId, LiteralId>,
+    /// all values, including global config values and task variables
     values: IdVec<AbstractValueId, Value>,
+    /// sizes we'll use to allocate collections later
     sizes: SizeHints,
+    /// utility for resolving values
     resolver: ValueResolver,
 }
 
@@ -107,16 +115,6 @@ impl Workflow {
         self.values.len()
     }
 
-    /// Resolve the given value for execution on the given branch.
-    #[inline]
-    pub fn resolve<T: RealValueLike>(
-        &self,
-        val: &Value,
-        branch: &BranchSpec,
-    ) -> Result<(T, BranchMasks)> {
-        self.resolver.resolve(val, branch, self)
-    }
-
     /// Get a reference to the plan defined with the given identifier.
     pub fn get_plan(&self, plan_name: IdentId) -> Result<&Plan> {
         for (k, plan) in &self.plans {
@@ -126,6 +124,19 @@ impl Workflow {
         }
         let plan_name = self.strings.idents.get(plan_name);
         Err(Error::PlanNotFound(plan_name.to_owned()).into())
+    }
+
+    /// Resolve the given value for execution on the given branch.
+    #[inline]
+    pub fn resolve<T: RealValueLike, B>(
+        &self,
+        val: &Value,
+        branch: &BranchSpec,
+    ) -> Result<(T, BranchMasks<B>)>
+    where
+        B: Bitmask,
+    {
+        self.resolver.resolve(val, branch, self)
     }
 }
 
@@ -170,7 +181,7 @@ impl Workflow {
             .with_context(|| format!("while creating AST for plan \"{}\"", plan.name))?;
 
         // NB we don't use an IdVec bc plans use the idents table,
-        // so the vec would be very sparse.
+        // so the vec would be very sparse. cd use a HashMap tho...
         self.plans.push((plan_id, plan));
         Ok(())
     }
@@ -179,10 +190,18 @@ impl Workflow {
         let id = self.strings.modules.intern(name);
         if let ast::Rhs::Literal { val } = path {
             let mut path = PathBuf::from(val);
-            // if path is relative, it is relative to the config_dir:
-            // TODO! this fails cryptically if the module dir doesn't exist!
+
             if path.is_relative() {
-                path = config_dir.join(path).canonicalize()?;
+                path = config_dir.join(path);
+            }
+
+            if path.exists() {
+                path = path.canonicalize()?;
+            } else {
+                log::debug!(
+                    "Module path {:?} does not exist; this may cause errors later.",
+                    path
+                );
             }
             let path_str = path.to_str().ok_or(PathEncodingError)?;
             let literal_id = self.strings.literals.intern(path_str);

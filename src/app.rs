@@ -6,13 +6,13 @@ use colored::Colorize;
 use intern::{GetStr, InternStr, TypedInterner};
 use syntax::{self, ast};
 use traverse::Traversal;
-use workflow::{BranchMask, Workflow, Plan, BranchSpec};
+use workflow::{BranchMask, BranchSpec, Plan, Subplan, Workflow};
 
 use crate::exec::WorkflowRunner;
 use crate::fs::Fs;
 use crate::invalidate::Invalidator;
 use crate::prep::{PreRunner, TraversalResolver};
-use crate::settings::{Settings, ArgsBranch};
+use crate::settings::{ArgsBranch, Settings};
 use crate::ui::Ui;
 
 #[derive(thiserror::Error, Debug)]
@@ -27,8 +27,11 @@ pub enum Error {
 
 /// This struct actually runs the command-line app.
 pub struct App {
+    /// Interpreted command line settings
     settings: Settings,
+    /// Filesystem interface
     fs: Fs,
+    /// User interface
     ui: Ui,
 }
 
@@ -42,20 +45,20 @@ impl App {
 
     /// Run the app, using settings to determine which task to run.
     pub fn run(mut self) -> Result<()> {
-
         if self.settings.verbose > 0 {
             eprintln!("Using output directory {:?}", self.settings.output);
         }
-        self.fs.ensure_output_dir_exists(self.settings.verbose > 0)?;
+        self.fs.ensure_out_dir_exists(self.settings.verbose > 0)?;
 
         let mut pathbuf = PathBuf::with_capacity(512);
-        let branchpoints_file = self.fs.branchpoints_txt(&mut pathbuf);
+        let branch_file = self.fs.branchpoints_txt(&mut pathbuf);
 
         let mut strbuf = String::with_capacity(0); // will be resized later.
 
         let mut wf = Workflow::default();
+        log::trace!("about to load branchpoints.txt");
         self.fs
-            .load_branchpoints_file(branchpoints_file, &mut wf, &mut strbuf, &self.ui)?;
+            .load_branches(branch_file, &mut wf, &mut strbuf, &self.ui)?;
 
         if self.settings.invalidate {
             let invalidator = Invalidator::new(&self.settings, &self.ui, &self.fs);
@@ -67,38 +70,53 @@ impl App {
 
             if !self.settings.dry_run {
                 log::info!("writing branchpoints file");
-                self.fs
-                    .write_branchpoints_file(branchpoints_file, &wf, &mut strbuf)?;
+                self.fs.write_branches(branch_file, &wf, &mut strbuf)?;
             }
 
-            let plan = self.get_target_for_run(&mut wf)?;
-
-            wf.strings.alloc_for_traversal();
-
-
-            self.ui.verbose_progress("Creating traversal");
-            let traversal = Traversal::create(&wf, plan)?;
-            self.ui.done();
-
+            let traversal = self.make_traversal(&mut wf)?;
             self.run_traversal(wf, traversal)?;
         }
 
         Ok(())
     }
+
+    fn make_traversal(&self, wf: &mut Workflow) -> Result<Traversal> {
+        let plan = self.get_target_for_run(wf)?;
+
+        wf.strings.alloc_for_traversal();
+        self.ui.verbose_progress("Creating traversal");
+        let traversal = match wf.strings.branchpoints.len() {
+            x if x <= 8 => Traversal::create::<u8>(wf, plan)?,
+            x if x <= 16 => Traversal::create::<u16>(wf, plan)?,
+            x if x <= 32 => Traversal::create::<u32>(wf, plan)?,
+            x if x <= 64 => Traversal::create::<u64>(wf, plan)?,
+            x if x <= 128 => Traversal::create::<u128>(wf, plan)?,
+            _ => todo!("add error for too many branches."),
+        };
+        self.ui.done();
+
+        log::debug!(
+            "Traversal has {} inputs and {} outputs/params.",
+            traversal.inputs.len(),
+            traversal.outputs_params.len(),
+        );
+
+        Ok(traversal)
+    }
 }
 
 // PARSING //////////////////
 impl App {
-    fn parse_workflow(&mut self, strbuf: &mut String, builder: &mut Workflow) -> Result<()> {
+    fn parse_workflow(&mut self, strbuf: &mut String, wf: &mut Workflow) -> Result<()> {
         self.read_config_to_buf(strbuf)?;
         let blocks = self.parse_config(&*strbuf)?;
 
         self.ui.verbose_progress("Creating workflow");
         self.ui.start_timer();
 
-        builder.load(blocks, self.settings.config_parent_dir()?)?;
+        wf.load(blocks, self.settings.config_parent_dir()?)?;
 
-        if builder.strings.branchpoints.len() > BranchMask::BITS as usize {
+        if wf.strings.branchpoints.len() > BranchMask::BITS as usize {
             return Err(Error::TooManyBranchpoints.into());
         }
         self.ui.done();
@@ -107,9 +125,10 @@ impl App {
         if self.settings.verbose > 0 {
             eprintln!(
                 "Created workflow with {} tasks and {} branchpoints.",
-                builder.strings.tasks.len(),
-                builder.strings.branchpoints.len()
+                wf.strings.tasks.len(),
+                wf.strings.branchpoints.len()
             );
+            wf.strings.log_sizes();
         }
 
         Ok(())
@@ -150,6 +169,12 @@ impl App {
         let actions = resolver
             .resolve_to_actions(traversal)
             .context("while preparing tasks for workflow run")?;
+
+        log::debug!(
+            "{} Run strs, str len {}",
+            wf.strings.run.len(),
+            wf.strings.run.str_len()
+        );
 
         if !actions.has_tasks_to_run() {
             eprintln!("{}", "No tasks to run; exiting.".green());
@@ -204,11 +229,18 @@ impl App {
                 }
             };
 
-            let plan = Plan {
-                goals: self.settings.tasks.iter().map(|name| {
-                    wf.strings.tasks.intern(name)
-                }).collect(),
+            let subplan = Subplan {
+                goals: self
+                    .settings
+                    .tasks
+                    .iter()
+                    .map(|name| wf.strings.tasks.intern(name))
+                    .collect(),
                 branches: vec![branch],
+            };
+
+            let plan = Plan {
+                subplans: vec![subplan],
             };
 
             Ok(plan)

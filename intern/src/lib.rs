@@ -39,6 +39,9 @@ pub trait GetStr<K> {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// Size of interned strings.
+    fn str_len(&self) -> usize;
 }
 
 /// Trait for interners that can intern a string and return a key `K`

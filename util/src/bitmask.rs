@@ -30,6 +30,8 @@ pub trait Bitmask:
     Sized
     + 'static
     + Copy
+    + Default
+    + std::fmt::Binary
     + cmp::PartialEq
     + ops::Shr<usize, Output = Self>
     + ops::BitOrAssign<Self>

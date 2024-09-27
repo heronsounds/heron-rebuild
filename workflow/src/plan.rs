@@ -5,21 +5,10 @@ use syntax::ast;
 
 use crate::{AbstractTaskId, BranchSpec, Error, WorkflowStrings};
 
-// i.e. cross product
-// #[derive(Debug)]
-// pub struct SubPlan {
-//     pub goals: Vec<AbstractTaskId>,
-//     // TODO allow multidimensional branches:
-//     pub branch: BranchSpec,
-// }
-
-/// A plan defined in a config file.
+/// Representation of a plan defined in a config file.
 #[derive(Debug, Clone)]
 pub struct Plan {
-    /// Tasks we want to reach.
-    pub goals: Vec<AbstractTaskId>,
-    /// Branches to realize tasks for.
-    pub branches: Vec<BranchSpec>,
+    pub subplans: Vec<Subplan>,
 }
 
 impl Plan {
@@ -27,25 +16,31 @@ impl Plan {
         strings: &mut WorkflowStrings,
         cross_products: Vec<ast::CrossProduct>,
     ) -> Result<Self> {
-        if cross_products.len() != 1 {
-            return Err(Error::Unsupported("plans with multiple subplans".to_owned()).into());
+        // TODO error if cross_products is empty?
+        let mut subplans = Vec::with_capacity(cross_products.len());
+        for cross_product in cross_products {
+            subplans.push(Subplan::create(strings, cross_product)?);
         }
+        Ok(Self { subplans })
+    }
+}
 
-        let cross_product = &cross_products[0];
+/// One line of a plan (aka a cross-product; e.g. "reach task via (Branch: val1 val2)").
+#[derive(Debug, Clone)]
+pub struct Subplan {
+    /// Tasks we want to reach.
+    pub goals: Vec<AbstractTaskId>,
+    /// Branches to realize tasks for.
+    pub branches: Vec<BranchSpec>,
+}
 
-        // let ast::CrossProduct { goals, branches } = &cross_products[0];
-        // if goals.len() != 1 {
-        //     return Err(Error::Unsupported("plans with multiple goal nodes".to_owned()).into());
-        // }
-
+impl Subplan {
+    pub fn create(strings: &mut WorkflowStrings, cross_product: ast::CrossProduct) -> Result<Self> {
         let mut goals = Vec::with_capacity(cross_product.goals.len());
         for goal in &cross_product.goals {
             let id = strings.tasks.intern(goal);
             goals.push(id);
         }
-
-        // let goal = goals[0];
-        // let goal_id = strings.tasks.intern(goal);
 
         let mut branches = vec![BranchSpec::default()];
         for (k, vs) in &cross_product.branches {
@@ -78,8 +73,9 @@ impl Plan {
                     }
                     // now clone for each subsequent val, and insert:
                     let mut new_branches = Vec::with_capacity(branches.len() * len);
-                    for i in 1..len {
-                        let v = strings.add_branch(k, vs[i]);
+                    // for i in 1..len {
+                    for v in vs.iter().skip(1) {
+                        let v = strings.add_branch(k, v);
                         for branch in &branches {
                             let mut new_branch = branch.clone();
                             new_branch.insert(k, v);
@@ -92,15 +88,6 @@ impl Plan {
             }
         }
 
-        // if branches.len() > 1 {
-        //     return Err(Error::Unsupported("plans with multiple branches".to_owned()).into());
-        // }
-
-        // let branch = branches.pop().unwrap();
-
-        Ok(Self {
-            goals,
-            branches,
-        })
+        Ok(Self { goals, branches })
     }
 }

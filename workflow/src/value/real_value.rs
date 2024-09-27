@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::{AbstractTaskId, BranchMask, BranchSpec, IdentId, LiteralId, RealTaskId};
+use crate::{AbstractTaskId, BranchSpec, IdentId, LiteralId, RealTaskId};
 
 use super::Error;
 
@@ -106,14 +106,14 @@ impl RealValueLike for RealOutputOrParam {
 
 /// for use in traversals while cleaning node branches:
 #[derive(Debug, Default, Clone)]
-pub struct BranchMasks {
+pub struct BranchMasks<B> {
     /// Branchpoints added at this node
-    pub add: BranchMask,
+    pub add: B, //BranchMask,
     /// Branchpoints removed at this node (e.g. from a branch graft)
-    pub rm: BranchMask,
+    pub rm: B, //BranchMask,
 }
 
-impl BranchMasks {
+impl<B: std::ops::BitOrAssign + Copy> BranchMasks<B> {
     /// union this set of masks with another set.
     pub fn or_eq(&mut self, other: &Self) {
         self.add |= other.add;

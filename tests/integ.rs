@@ -1,12 +1,10 @@
 use anyhow::Result;
 use heron_rebuild::{App, Args};
 use std::path::PathBuf;
-use tempfile::tempdir;
 use std::sync::{LazyLock, Mutex};
+use tempfile::tempdir;
 
-static MODULE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| {
-    Mutex::default()
-});
+static MODULE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::default());
 
 const MODULE_PATH: &str = "examples/test-module";
 
@@ -18,7 +16,7 @@ fn basic_args(output: String) -> Args {
         tasks: Vec::with_capacity(0),
         invalidate: false,
         yes: true,
-        verbose: true,
+        verbose: 1,
         branch: Vec::with_capacity(0),
         baseline: false,
         dry_run: false,
@@ -231,14 +229,24 @@ fn test_plan_with_two_goals() -> Result<()> {
     // (it would be nice to write a more specific lower-level test for this).
     let output = run_plan("two_goals")?;
 
-    let mut correct_symlink = PathBuf::from(output.path());
-    correct_symlink.push("cargo_build/Profile.debug+Arch.x64");
+    let correct_symlink = output.path().join("cargo_build/Profile.debug+Arch.x64");
+    let incorrect_symlink = output.path().join("cargo_build/Profile.debug");
 
-    let mut incorrect_symlink = PathBuf::from(output.path());
-    incorrect_symlink.push("cargo_build/Profile.debug");
+    assert!(correct_symlink.exists(), "Fully specified symlink exists");
+    assert!(
+        !incorrect_symlink.exists(),
+        "Incorrect, partially specified symlink does not exist"
+    );
 
-    assert!(correct_symlink.exists());
-    assert!(!incorrect_symlink.exists());
+    Ok(())
+}
+
+#[test]
+fn test_plan_with_two_subplans() -> Result<()> {
+    let output = run_plan("two_subplans")?;
+
+    let realization = output.path().join("cargo_build/Profile.debug+Arch.x64");
+    assert!(realization.exists(), "implicit task realization exists");
 
     Ok(())
 }

@@ -307,7 +307,7 @@ impl TraversalResolver<'_> {
 fn lit_str<'a>(
     v: &RealOutput,
     wf: &Workflow,
-    literals: &'a intern::TypedInterner<workflow::LiteralId, intern::LooseInterner>,
+    literals: &'a intern::TypedInterner<workflow::LiteralId, intern::LooseInterner<u8, u16>, u8>,
     strbuf: &'a mut String,
 ) -> Result<&'a str> {
     match v {

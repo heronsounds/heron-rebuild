@@ -4,6 +4,8 @@ use super::{GetStr, InternStr, KeyToStr, StrToKey, Strs};
 
 /// Interner that checks for duplicates and will only intern a given string once.
 /// Using the lasso/rodeo hack for packed maps.
+/// First param ("Key") is the id and must be big enough to fit total items;
+/// Second param ("Idx") is an index into the string and must be greater than string len.
 #[derive(Debug)]
 pub struct PackedInterner<Key = u32, Idx = usize, H = crate::Hasher> {
     str_to_key: StrToKey<Key, H>,
@@ -15,6 +17,13 @@ impl<Key, Idx> PackedInterner<Key, Idx, crate::Hasher> {
         Self {
             str_to_key: StrToKey::with_capacity(cap),
             key_to_str: KeyToStr::with_capacity_and_avg_len(cap, avg_len),
+        }
+    }
+
+    pub fn with_capacity_and_str_len(cap: usize, str_len: usize) -> Self {
+        Self {
+            str_to_key: StrToKey::with_capacity(cap),
+            key_to_str: KeyToStr::with_capacity_and_str_len(cap, str_len),
         }
     }
 }
@@ -30,6 +39,10 @@ where
 
     fn len(&self) -> usize {
         self.key_to_str.len()
+    }
+
+    fn str_len(&self) -> usize {
+        self.key_to_str.str_len()
     }
 }
 

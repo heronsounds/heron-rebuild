@@ -12,9 +12,13 @@ pub struct KeyToStr<Key = u32, Idx = usize> {
 
 impl<Key, Idx> KeyToStr<Key, Idx> {
     pub fn with_capacity_and_avg_len(cap: usize, avg_len: usize) -> Self {
+        Self::with_capacity_and_str_len(cap, cap * avg_len)
+    }
+
+    pub fn with_capacity_and_str_len(cap: usize, str_len: usize) -> Self {
         Self {
             key_to_str: Vec::with_capacity(cap),
-            strings: String::with_capacity(cap * avg_len),
+            strings: String::with_capacity(str_len),
             _phantom: PhantomData,
         }
     }
@@ -23,49 +27,45 @@ impl<Key, Idx> KeyToStr<Key, Idx> {
 // GetStr ////////////////////
 impl<Key, Idx> GetStr<Key> for KeyToStr<Key, Idx>
 where
-    Key: TryInto<usize> + TryFrom<usize>,
-    Idx: Into<usize> + From<usize> + Copy,
+    Key: TryInto<usize>,
+    Idx: TryInto<usize> + Copy,
 {
     fn get(&self, k: Key) -> &str {
-        let (start, end) = self.get_start_and_end(to_usize(k));
+        let k = into_usize(k);
+        let start = into_usize(self.key_to_str[k]);
+        let end = if k == self.key_to_str.len() - 1 {
+            self.strings.len()
+        } else {
+            into_usize(self.key_to_str[k + 1])
+        };
+
         &self.strings[start..end]
     }
 
     fn len(&self) -> usize {
         self.key_to_str.len()
     }
+
+    fn str_len(&self) -> usize {
+        self.strings.len()
+    }
 }
 
 // InternStr ///////////////////
 impl<Key, Idx> InternStr<Key> for KeyToStr<Key, Idx>
 where
-    Key: TryInto<usize> + TryFrom<usize>,
-    Idx: Into<usize> + From<usize> + Copy,
+    Key: TryFrom<usize>,
+    Idx: TryFrom<usize>,
 {
     fn intern<T: AsRef<str>>(&mut self, s: T) -> Key {
         let s = s.as_ref();
         let start = self.strings.len();
         let k = from_usize(self.key_to_str.len());
 
-        self.key_to_str.push(start.into());
+        self.key_to_str.push(from_usize(start));
         self.strings.push_str(s);
 
         k
-    }
-}
-
-impl<Key, Idx> KeyToStr<Key, Idx>
-where
-    Idx: Into<usize> + Copy,
-{
-    fn get_start_and_end(&self, k: usize) -> (usize, usize) {
-        let start = self.key_to_str[k].into();
-        let end = if k == self.key_to_str.len() - 1 {
-            self.strings.len()
-        } else {
-            self.key_to_str[k + 1].into()
-        };
-        (start, end)
     }
 }
 
@@ -75,10 +75,14 @@ impl<Key, Idx> From<KeyToStr<Key, Idx>> for Strs<Key, Idx> {
     }
 }
 
-fn to_usize<T: TryInto<usize>>(x: T) -> usize {
-    x.try_into().ok().unwrap()
+fn into_usize<T: TryInto<usize>>(x: T) -> usize {
+    x.try_into()
+        .ok()
+        .expect("Invalid conversion from interner key or index to usize")
 }
 
 fn from_usize<T: TryFrom<usize>>(x: usize) -> T {
-    T::try_from(x).ok().unwrap()
+    T::try_from(x)
+        .ok()
+        .expect("Invalid conversion from usize to interner key or index")
 }

@@ -3,15 +3,16 @@ use colored::Colorize;
 use std::collections::VecDeque;
 
 use intern::GetStr;
-use util::IdVec;
+use util::{Bitmask, IdVec};
 use workflow::{
     AbstractValueId, BranchStrs, PartialRealInput, RealInput, RealOutputOrParam, RealValueId,
     Workflow,
 };
 
-use super::{Node, RealTaskKey, Traversal};
+use super::{NodeBuilder, RealTaskKey, TraversalBuilder};
 
 const QUEUE_CAPACITY: usize = 32;
+const ROOTS_CAPACITY: usize = 8;
 
 struct QueueNode {
     key: RealTaskKey,
@@ -19,16 +20,16 @@ struct QueueNode {
 }
 
 /// Breadth-first search traversal strategy
-pub struct BfsTraverser<'a> {
+pub struct BfsTraverser<'a, B> {
     /// workflow info
     wf: &'a Workflow,
     /// used internally to create bfs traversal
     queue: VecDeque<QueueNode>,
     /// traversal we will build iteratively w/ calls to traverse()
-    traversal: Traversal,
+    traversal: TraversalBuilder<B>,
 }
 
-impl<'a> BfsTraverser<'a> {
+impl<'a, B: Bitmask> BfsTraverser<'a, B> {
     /// Create a new BfsTraverser with the given workflow info
     pub fn new(wf: &'a Workflow) -> Self {
         let len_x2 = wf.strings.tasks.len() * 2;
@@ -36,18 +37,18 @@ impl<'a> BfsTraverser<'a> {
         Self {
             wf,
             queue: VecDeque::with_capacity(QUEUE_CAPACITY),
-            traversal: Traversal {
+            traversal: TraversalBuilder {
                 nodes: Vec::with_capacity(len_x2),
                 inputs: IdVec::with_capacity(len_x2),
                 outputs_params: IdVec::with_capacity(len_x8),
-                num_roots: 0,
                 branch_strs: BranchStrs::with_capacity_and_avg_len(32, 32),
+                roots: Vec::with_capacity(ROOTS_CAPACITY),
             },
         }
     }
 
     /// Consume this struct and return its completed Traversal.
-    pub fn into_traversal(self) -> Traversal {
+    pub fn into_traversal(self) -> TraversalBuilder<B> {
         self.traversal
     }
 
@@ -70,7 +71,7 @@ impl<'a> BfsTraverser<'a> {
 
         let this_node_id = self.traversal.nodes.len();
         let task = self.wf.get_task(node.key.abstract_task_id);
-        let mut node = Node::new(node.key, node.next_idx, task);
+        let mut node = NodeBuilder::new(node.key, node.next_idx, task);
 
         for (k, input) in &task.vars.inputs {
             log::trace!("handling input {}", self.wf.strings.idents.get(*k));
@@ -78,7 +79,7 @@ impl<'a> BfsTraverser<'a> {
             node.vars.inputs.push((*k, val_id));
         }
         if node.is_root {
-            self.traversal.num_roots += 1;
+            self.traversal.roots.push(self.traversal.nodes.len() as u16);
         }
 
         for (k, param) in &task.vars.params {
@@ -114,11 +115,13 @@ impl<'a> BfsTraverser<'a> {
     fn handle_input(
         &mut self,
         val: AbstractValueId,
-        node: &mut Node,
+        node: &mut NodeBuilder<B>,
         this_node_id: usize,
     ) -> Result<RealValueId> {
         let val = self.wf.get_value(val);
-        let (val, masks) = self.wf.resolve::<PartialRealInput>(val, &node.key.branch)?;
+        let (val, masks) = self
+            .wf
+            .resolve::<PartialRealInput, B>(val, &node.key.branch)?;
 
         let real_val = match val {
             PartialRealInput::Task(abstract_task_id, ident, branch) => {
@@ -142,12 +145,12 @@ impl<'a> BfsTraverser<'a> {
     fn handle_output_or_param(
         &mut self,
         val: AbstractValueId,
-        node: &mut Node,
+        node: &mut NodeBuilder<B>,
     ) -> Result<RealValueId> {
         let val = self.wf.get_value(val);
         let (val, masks) = self
             .wf
-            .resolve::<RealOutputOrParam>(val, &node.key.branch)?;
+            .resolve::<RealOutputOrParam, B>(val, &node.key.branch)?;
         log::trace!("value adds branches: {:#b}", masks.add);
         log::trace!("value rms branches: {:#b}", masks.rm);
         let val_id = self.traversal.outputs_params.push(val);

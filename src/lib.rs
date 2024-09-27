@@ -47,9 +47,6 @@ pub fn run() -> Result<(), anyhow::Error> {
 
 // TODO from building find-fix:
 // - runtime error messages shd say which task they're from
-// - "Task completed" shd say which task, too.
-// - upgrade plans!
-// - cryptic error if module dir doesn't exist, and happens too early.
 // - something like '-r' to force re-run a task. (or '-f'...)
 // - and maybe '-R' to force re-run task and *all its dependencies*...
 // - need an equivalent to ducttape's 'mark_done' too.

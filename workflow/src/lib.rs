@@ -11,7 +11,7 @@ mod task;
 pub use task::{Task, TaskVars};
 
 mod plan;
-pub use plan::Plan;
+pub use plan::{Plan, Subplan};
 
 mod branch;
 pub use branch::{

@@ -11,30 +11,31 @@ use crate::{
 #[derive(Debug)]
 pub struct WorkflowStrings {
     /// Names of branchpoints
-    pub branchpoints: TypedInterner<BranchpointId, PackedInterner>,
+    pub branchpoints: TypedInterner<BranchpointId, PackedInterner<u8, u8>, u8>,
     /// Names of tasks
-    pub tasks: TypedInterner<AbstractTaskId, PackedInterner>,
+    pub tasks: TypedInterner<AbstractTaskId, PackedInterner<u8, u8>, u8>,
     /// Names of other idents (variables, branches, etc.)
-    pub idents: TypedInterner<IdentId, PackedInterner>,
+    pub idents: TypedInterner<IdentId, PackedInterner<u8, u16>, u8>,
     /// Names of modules
-    pub modules: TypedInterner<ModuleId, PackedInterner>,
+    pub modules: TypedInterner<ModuleId, PackedInterner<u8, u8>, u8>,
     /// Literal strings (code blocks, variable values)
-    pub literals: TypedInterner<LiteralId, LooseInterner>,
+    pub literals: TypedInterner<LiteralId, LooseInterner<u8, u16>, u8>,
     /// Keep track of which branch is baseline for each branchpoint
     pub baselines: BaselineBranches,
     /// Strings used while running workflow: full file paths, debug strings etc.
-    pub run: TypedInterner<RunStrId, PackedInterner>,
+    // this was observed to be 18/994, later 54/3436.
+    pub run: TypedInterner<RunStrId, PackedInterner<u32, usize>, u32>,
 }
 
 impl Default for WorkflowStrings {
     fn default() -> Self {
-        let mut idents = PackedInterner::with_capacity_and_avg_len(64, 16);
+        let mut idents = PackedInterner::with_capacity_and_avg_len(64, 1024);
         // seed idents with an empty value, so we can use 0 as a special val:
         idents.intern("");
 
         Self {
-            branchpoints: TypedInterner::new(PackedInterner::with_capacity_and_avg_len(8, 16)),
-            tasks: TypedInterner::new(PackedInterner::with_capacity_and_avg_len(16, 16)),
+            branchpoints: TypedInterner::new(PackedInterner::with_capacity_and_str_len(8, 32)),
+            tasks: TypedInterner::new(PackedInterner::with_capacity_and_str_len(16, 256)),
             idents: TypedInterner::new(idents),
             literals: TypedInterner::new(LooseInterner::with_capacity_and_avg_len(64, 128)),
             modules: TypedInterner::new(PackedInterner::with_capacity_and_avg_len(8, 16)),
@@ -54,7 +55,7 @@ impl WorkflowStrings {
     /// Since we don't allocate any space for runtime strings up front,
     /// call this fn to get ready to actually run the workflow.
     pub fn alloc_for_run(&mut self) {
-        self.run = TypedInterner::new(PackedInterner::with_capacity_and_avg_len(64, 64));
+        self.run = TypedInterner::new(PackedInterner::with_capacity_and_str_len(64, 4096));
     }
 
     /// Create a value from its ast representation.
@@ -77,6 +78,23 @@ impl WorkflowStrings {
 
     pub fn add_branch(&mut self, _branchpoint: BranchpointId, branch_name: &str) -> IdentId {
         self.idents.intern(branch_name)
+    }
+
+    pub fn log_sizes(&self) {
+        self.log_sizes_for("Branchpoints", &self.branchpoints);
+        self.log_sizes_for("Tasks", &self.tasks);
+        self.log_sizes_for("Idents", &self.idents);
+        self.log_sizes_for("Modules", &self.modules);
+        self.log_sizes_for("Literals", &self.literals);
+    }
+
+    fn log_sizes_for<K, T: GetStr<K>>(&self, name: &str, interner: &T) {
+        log::debug!(
+            "{} {}, str len {}",
+            interner.len(),
+            name,
+            interner.str_len()
+        );
     }
 }
 

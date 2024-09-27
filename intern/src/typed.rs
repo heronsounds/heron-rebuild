@@ -36,6 +36,10 @@ where
     fn len(&self) -> usize {
         self.interner.len()
     }
+
+    fn str_len(&self) -> usize {
+        self.interner.str_len()
+    }
 }
 
 // InternStr ///////////////

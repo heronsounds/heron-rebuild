@@ -13,7 +13,7 @@ use super::{Error, Fs};
 
 impl Fs {
     /// Load the contents of `branchpoints_file` into `wf`.
-    pub fn load_branchpoints_file(
+    pub fn load_branches(
         &self,
         branchpoints_file: &Path,
         wf: &mut Workflow,
@@ -24,7 +24,7 @@ impl Fs {
     }
 
     /// Write info from `wf` into `branchpoints_file`.
-    pub fn write_branchpoints_file(
+    pub fn write_branches(
         &self,
         branchpoints_file: &Path,
         wf: &Workflow,

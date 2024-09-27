@@ -17,11 +17,16 @@
 
 /// full BFS traversal (in reverse order) of the workflow
 mod bfs;
+
 /// reverse and simplify branches
 mod cleanup;
+
 /// struct returned by this mod
 mod traversal;
 pub use traversal::Traversal;
+use traversal::TraversalBuilder;
+
 /// useful structs, including [`Node`]
 mod node;
+use node::NodeBuilder;
 pub use node::{Node, RealTaskKey};

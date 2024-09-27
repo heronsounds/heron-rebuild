@@ -56,13 +56,15 @@ impl Fs {
     }
 
     /// Check whether output dir exists, and create it if not.
-    pub fn ensure_output_dir_exists(&mut self, verbose: bool) -> Result<()> {
+    pub fn ensure_out_dir_exists(&mut self, verbose: bool) -> Result<()> {
         if !self.output_prefix.exists() {
             if self.dry_run {
                 eprintln!(
                     "Dry run. Not creating output directory {:?}",
                     self.output_prefix
                 );
+                // short-circuit so we don't try to canonicalize:
+                return Ok(());
             } else {
                 eprintln!(
                     "Output directory {:?} doesn't exist. Creating.",

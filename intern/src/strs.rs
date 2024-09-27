@@ -26,4 +26,8 @@ where
     fn len(&self) -> usize {
         self.key_to_str.len()
     }
+
+    fn str_len(&self) -> usize {
+        self.key_to_str.str_len()
+    }
 }

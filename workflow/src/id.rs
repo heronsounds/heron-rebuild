@@ -39,14 +39,14 @@ macro_rules! id {
     };
 }
 
-id!(ModuleId, u32);
-id!(BranchpointId, u32);
-id!(IdentId, u32);
-id!(LiteralId, u32);
-id!(AbstractTaskId, u32);
-id!(AbstractValueId, u32);
+id!(ModuleId, u8);
+id!(BranchpointId, u8);
+id!(IdentId, u8);
+id!(LiteralId, u8);
+id!(AbstractTaskId, u8);
+id!(AbstractValueId, u8);
 
-id!(RealTaskId, u32);
-id!(RealValueId, u32);
+id!(RealTaskId, u8);
+id!(RealValueId, u8);
 
 id!(RunStrId, u32);
