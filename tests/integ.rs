@@ -8,6 +8,8 @@ static MODULE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| {
     Mutex::default()
 });
 
+const MODULE_PATH: &str = "examples/test-module";
+
 fn basic_args(output: String) -> Args {
     Args {
         config: String::from("examples/stub.tconf"),
@@ -28,12 +30,15 @@ fn stringify_dir(dir: &tempfile::TempDir) -> String {
 }
 
 fn run_basic() -> Result<tempfile::TempDir> {
-    simple_logging::log_to_stderr(log::LevelFilter::Trace);
+    run_plan("debug")
+}
 
-    // have to create module dir if it doesn't exist, but only once:
+fn run_plan(plan: &str) -> Result<tempfile::TempDir> {
+    simple_logging::log_to_stderr(log::LevelFilter::Trace);
+    // create module dir if it doesn't exist, but only once:
     {
         let _lock = MODULE_LOCK.lock();
-        let module_dir = PathBuf::from("examples/test-module");
+        let module_dir = PathBuf::from(MODULE_PATH);
         if !module_dir.exists() {
             std::fs::create_dir(&module_dir)?;
         }
@@ -42,7 +47,7 @@ fn run_basic() -> Result<tempfile::TempDir> {
     let output = tempdir()?;
     let mut args = basic_args(stringify_dir(&output));
 
-    args.plan = Some("debug".to_owned());
+    args.plan = Some(plan.to_owned());
     let settings = args.try_into()?;
     let app = App::new(settings);
     app.run()?;
@@ -210,5 +215,30 @@ fn test_invalidate_earlier_task_baseline() -> Result<()> {
     );
 
     output.close()?;
+    Ok(())
+}
+
+#[test]
+fn test_plan_with_two_goals() -> Result<()> {
+    // we had a bug where the "Arch" branchpoint wasn't being added
+    // to tasks (like cargo_build) that require it when the task
+    // was explicitly specified as a goal (i.e. not implicitly specified
+    // as antecedent of a goal).
+    // This leads to creating an extra "Profile.debug" realization w/o "Arch",
+    // b/c the tasks weren't deduped properly.
+    // Here, we're using the existence of the correct symlink as a proxy for
+    // deduping the branched tasks correctly.
+    // (it would be nice to write a more specific lower-level test for this).
+    let output = run_plan("two_goals")?;
+
+    let mut correct_symlink = PathBuf::from(output.path());
+    correct_symlink.push("cargo_build/Profile.debug+Arch.x64");
+
+    let mut incorrect_symlink = PathBuf::from(output.path());
+    incorrect_symlink.push("cargo_build/Profile.debug");
+
+    assert!(correct_symlink.exists());
+    assert!(!incorrect_symlink.exists());
+
     Ok(())
 }

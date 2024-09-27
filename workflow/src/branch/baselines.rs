@@ -29,6 +29,12 @@ impl BaselineBranches {
         }
     }
 
+    /// Get the `IdentId` of baseline branch for the given branchpoint.
+    pub fn get(&self, k: BranchpointId) -> IdentId {
+        let k: usize = k.into();
+        self.vec[k]
+    }
+
     /// Iterate through baseline branch values.
     // NB the first part of the tuple is equivalent to a BranchpointId.
     pub fn iter(&self) -> impl Iterator<Item = (usize, &IdentId)> {

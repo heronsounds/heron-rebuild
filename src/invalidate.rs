@@ -69,7 +69,7 @@ impl Invalidator<'_> {
                     arg_branch.insert(k, v);
                 }
                 for task in &self.settings.tasks {
-                    if self.settings.verbose {
+                    if self.settings.verbose > 0 {
                         eprintln!(
                             "{} in task {}.",
                             "Searching for realizations to invalidate".magenta(),

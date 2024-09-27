@@ -43,7 +43,7 @@ fn correct_next_idx(node: &mut Node, final_idx: usize) {
 
 /// Filter out unneeded branches from a Traversal,
 /// so that branches can be used as keys to dedupe tasks in the next step.
-pub fn clean_branches(traversal: &mut Traversal, wf: &Workflow, verbose: bool) -> Result<()> {
+pub fn clean_branches(traversal: &mut Traversal, wf: &Workflow) -> Result<()> {
     log::info!(
         "Cleaning branches for traversal with {} roots",
         traversal.num_roots
@@ -55,25 +55,26 @@ pub fn clean_branches(traversal: &mut Traversal, wf: &Workflow, verbose: bool) -
             let mut idx = i;
             let mut traversal_mask = BranchMask::default();
             loop {
-                if verbose {
-                    log::info!(
-                        "Cleaning branches for {}[{}]",
-                        wf.strings.tasks.get(node.key.abstract_task_id).cyan(),
-                        traversal.branch_strs.get(&node.key.branch)?,
-                    );
-                }
+                log::debug!(
+                    "Cleaning branches for {}[{}]",
+                    wf.strings.tasks.get(node.key.abstract_task_id).cyan(),
+                    traversal.branch_strs.get(&node.key.branch)?,
+                );
+
+                log::trace!("traversal mask: {:#b}", traversal_mask);
+                log::trace!("this node removes: {:#b}", node.masks.rm);
+                log::trace!("this node adds: {:#b}", node.masks.add);
 
                 // filter first, then add, b/c we can prune a branchpoint and then add it in the same node:
                 traversal_mask &= !node.masks.rm;
                 traversal_mask |= node.masks.add;
 
-                rm_filtered_branchpoints(&mut node.key.branch, &traversal_mask);
-                if verbose {
-                    log::info!(
-                        "After cleaning: {}",
-                        traversal.branch_strs.get_or_insert(&node.key.branch, wf),
-                    );
-                }
+                rm_filtered_branchpoints(&mut node.key.branch, &traversal_mask, wf);
+
+                log::debug!(
+                    "After cleaning: {}",
+                    traversal.branch_strs.get_or_insert(&node.key.branch, wf),
+                );
 
                 // if node is terminal/is a goal node, this traversal is done:
                 if node.next_idx == idx {
@@ -95,16 +96,22 @@ pub fn clean_branches(traversal: &mut Traversal, wf: &Workflow, verbose: bool) -
 }
 
 /// Replace branches that have been filtered out with baseline/NULL_IDENT.
-fn rm_filtered_branchpoints<T: Bitmask>(branch: &mut BranchSpec, mask: &T) {
-    for i in 0..T::BITS {
+fn rm_filtered_branchpoints<T: Bitmask>(branch: &mut BranchSpec, mask: &T, wf: &Workflow) {
+    for i in 0..wf.strings.branchpoints.len() {
         let branchpoint_id = i.into();
+        log::trace!("checking branchpoint {}", wf.strings.branchpoints.get(branchpoint_id));
         if !mask.get(i) {
+            log::trace!("not in mask; removing.");
             branch.unset(branchpoint_id);
         } else if branch.is_unspecified(branchpoint_id) {
+            log::trace!("branch is in mask, but not specified in node. Adding baseline.");
             // log::debug!("missing branchpoint {:?}: {}",
             //     branchpoint_id,
-            //     wf.branches.branchpoints.get(branchpoint_id),
+            //     wf.strings.branchpoints.get(branchpoint_id),
             // );
+            branch.insert(branchpoint_id, wf.strings.baselines.get(branchpoint_id));
+        } else {
+            log::trace!("branch is all good.");
         }
     }
 }

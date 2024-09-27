@@ -35,8 +35,8 @@ pub struct Args {
     pub yes: bool,
 
     /// Print additional debugging info
-    #[arg(short, long)]
-    pub verbose: bool,
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    pub verbose: u8,
 
     /// Target branch
     #[arg(short, long, value_name = "K1.V1[+K2.V2]")]

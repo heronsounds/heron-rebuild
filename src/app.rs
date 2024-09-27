@@ -42,6 +42,12 @@ impl App {
 
     /// Run the app, using settings to determine which task to run.
     pub fn run(mut self) -> Result<()> {
+
+        if self.settings.verbose > 0 {
+            eprintln!("Using output directory {:?}", self.settings.output);
+        }
+        self.fs.ensure_output_dir_exists(self.settings.verbose > 0)?;
+
         let mut pathbuf = PathBuf::with_capacity(512);
         let branchpoints_file = self.fs.branchpoints_txt(&mut pathbuf);
 
@@ -57,14 +63,10 @@ impl App {
         }
 
         if self.settings.run {
-            if self.settings.verbose {
-                eprintln!("Using output directory {:?}", self.settings.output);
-            }
-            self.fs.ensure_output_dir_exists(self.settings.verbose)?;
-
             self.parse_workflow(&mut strbuf, &mut wf)?;
 
             if !self.settings.dry_run {
+                log::info!("writing branchpoints file");
                 self.fs
                     .write_branchpoints_file(branchpoints_file, &wf, &mut strbuf)?;
             }
@@ -75,7 +77,7 @@ impl App {
 
 
             self.ui.verbose_progress("Creating traversal");
-            let traversal = Traversal::create(&wf, plan, self.settings.verbose)?;
+            let traversal = Traversal::create(&wf, plan)?;
             self.ui.done();
 
             self.run_traversal(wf, traversal)?;
@@ -102,7 +104,7 @@ impl App {
         self.ui.done();
         self.ui.print_elapsed("Creating workflow")?;
 
-        if self.settings.verbose {
+        if self.settings.verbose > 0 {
             eprintln!(
                 "Created workflow with {} tasks and {} branchpoints.",
                 builder.strings.tasks.len(),
@@ -158,7 +160,7 @@ impl App {
         self.fs.set_dry_run(false);
 
         // print summary of actions and confirm w/ user:
-        let mut pre_runner = PreRunner::new(&self.fs, &wf, self.settings.verbose);
+        let mut pre_runner = PreRunner::new(&self.fs, &wf, self.settings.verbose > 0);
         pre_runner.print_actions(&actions);
         if self.settings.dry_run || !self.ui.confirm("Proceed?")? {
             return Ok(());

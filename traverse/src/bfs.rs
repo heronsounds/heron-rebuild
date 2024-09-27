@@ -26,18 +26,15 @@ pub struct BfsTraverser<'a> {
     queue: VecDeque<QueueNode>,
     /// traversal we will build iteratively w/ calls to traverse()
     traversal: Traversal,
-    /// verbosity level (for logging):
-    verbose: bool,
 }
 
 impl<'a> BfsTraverser<'a> {
     /// Create a new BfsTraverser with the given workflow info
-    pub fn new(wf: &'a Workflow, verbose: bool) -> Self {
+    pub fn new(wf: &'a Workflow) -> Self {
         let len_x2 = wf.strings.tasks.len() * 2;
         let len_x8 = len_x2 * 4;
         Self {
             wf,
-            verbose,
             queue: VecDeque::with_capacity(QUEUE_CAPACITY),
             traversal: Traversal {
                 nodes: Vec::with_capacity(len_x2),
@@ -65,19 +62,18 @@ impl<'a> BfsTraverser<'a> {
 
     /// Handle a single node popped off the queue.
     fn handle(&mut self, node: QueueNode) -> Result<()> {
-        if self.verbose {
-            log::info!(
-                "Handling enqueued node {}[{}]",
-                self.wf.strings.tasks.get(node.key.abstract_task_id).cyan(),
-                self.traversal.branch_strs.get(&node.key.branch)?,
-            );
-        }
+        log::debug!(
+            "Handling enqueued node {}[{}]",
+            self.wf.strings.tasks.get(node.key.abstract_task_id).cyan(),
+            self.traversal.branch_strs.get(&node.key.branch)?,
+        );
 
         let this_node_id = self.traversal.nodes.len();
         let task = self.wf.get_task(node.key.abstract_task_id);
         let mut node = Node::new(node.key, node.next_idx, task);
 
         for (k, input) in &task.vars.inputs {
+            log::trace!("handling input {}", self.wf.strings.idents.get(*k));
             let val_id = self.handle_input(*input, &mut node, this_node_id)?;
             node.vars.inputs.push((*k, val_id));
         }
@@ -86,29 +82,32 @@ impl<'a> BfsTraverser<'a> {
         }
 
         for (k, param) in &task.vars.params {
+            log::trace!("handling param {}", self.wf.strings.idents.get(*k));
             let val_id = self.handle_output_or_param(*param, &mut node)?;
             node.vars.params.push((*k, val_id));
         }
 
         for (k, output) in &task.vars.outputs {
+            log::trace!("handling output {}", self.wf.strings.idents.get(*k));
             let val_id = self.handle_output_or_param(*output, &mut node)?;
             node.vars.outputs.push((*k, val_id));
         }
+
+        log::trace!("node now adds: {:#b}", node.masks.add);
+        log::trace!("node now rms: {:#b}", node.masks.rm);
 
         self.traversal.nodes.push(node);
         Ok(())
     }
 
     fn enqueue(&mut self, key: RealTaskKey, next_idx: usize) {
-        if self.verbose {
-            log::info!(
-                "Enqueueing {}[{}]",
-                self.wf.strings.tasks.get(key.abstract_task_id).cyan(),
-                self.traversal
-                    .branch_strs
-                    .get_or_insert(&key.branch, self.wf),
-            );
-        }
+        log::debug!(
+            "Enqueueing {}[{}]",
+            self.wf.strings.tasks.get(key.abstract_task_id).cyan(),
+            self.traversal
+                .branch_strs
+                .get_or_insert(&key.branch, self.wf),
+        );
         self.queue.push_back(QueueNode { key, next_idx });
     }
 
@@ -149,6 +148,8 @@ impl<'a> BfsTraverser<'a> {
         let (val, masks) = self
             .wf
             .resolve::<RealOutputOrParam>(val, &node.key.branch)?;
+        log::trace!("value adds branches: {:#b}", masks.add);
+        log::trace!("value rms branches: {:#b}", masks.rm);
         let val_id = self.traversal.outputs_params.push(val);
         node.masks.or_eq(&masks);
         Ok(val_id)

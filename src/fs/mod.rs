@@ -192,6 +192,8 @@ impl Fs {
 
     fn is_whitelisted<T: AsRef<Path>>(&self, path: T) -> bool {
         let path = path.as_ref();
+
+        // TODO need to make paths absolute...
         if path.starts_with(&self.output_prefix) {
             return true;
         }

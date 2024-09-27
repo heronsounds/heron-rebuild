@@ -32,7 +32,7 @@ pub struct Settings {
     pub config: PathBuf,
     pub output: PathBuf,
     pub yes: bool,
-    pub verbose: bool,
+    pub verbose: u8,
     pub branches: ArgsBranch,
     pub tasks: Vec<String>,
     pub dry_run: bool,
@@ -79,9 +79,17 @@ impl TryFrom<Args> for Settings {
         let invalidate = args.invalidate;
         let run = !args.invalidate;
 
+        let mut config = PathBuf::from(&args.config);
+        if config.exists() {
+            config = config.canonicalize()?;
+        } else {
+            todo!("add an error if config file doesn't exist here");
+        }
+        let output = PathBuf::from(&args.output);
+
         Ok(Self {
-            config: Path::new(&args.config).canonicalize()?,
-            output: Path::new(&args.output).canonicalize()?,
+            config,
+            output,
             yes: args.yes,
             verbose: args.verbose,
             branches,

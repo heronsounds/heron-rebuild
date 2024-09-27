@@ -43,6 +43,7 @@ combine = "4.5"
 rustc-hash = "1.1"
 hashbrown = "0.14"
 log = "0.4"
+# log.features = ["release_max_level_warn"]
 colored = "2.1"
 
 [dependencies]

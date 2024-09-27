@@ -22,7 +22,7 @@ pub struct Ui {
 impl Ui {
     pub fn new(settings: &Settings) -> Self {
         Self {
-            verbose: settings.verbose,
+            verbose: settings.verbose > 0,
             override_confirmation: settings.yes,
             timer: Timer::now(),
             // Refcell so we can call confirm() w/o needing a unique reference:

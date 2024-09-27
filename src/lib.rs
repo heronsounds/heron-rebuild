@@ -28,13 +28,14 @@ pub fn run() -> Result<(), anyhow::Error> {
     // INTERPRET SETTINGS ///////////////
     let settings: Settings = args.try_into()?;
 
-    // SET UP LOGGING /////////////////
-    let log_level = if settings.verbose {
-        log::LevelFilter::Info
-    } else {
-        std::env::set_var("RUST_BACKTRACE", "1");
-        log::LevelFilter::Warn
+    let log_level = match settings.verbose {
+        0 => log::LevelFilter::Warn,
+        1 => log::LevelFilter::Info,
+        2 => log::LevelFilter::Debug,
+        _ => log::LevelFilter::Trace,
     };
+    // TODO why did I add this here?
+    std::env::set_var("RUST_BACKTRACE", "1");
     simple_logging::log_to_stderr(log_level);
 
     // RUN THE THING /////////////////
@@ -48,10 +49,8 @@ pub fn run() -> Result<(), anyhow::Error> {
 // - runtime error messages shd say which task they're from
 // - "Task completed" shd say which task, too.
 // - upgrade plans!
-// - allow running a task (rather than plan) from cmd line.
 // - cryptic error if module dir doesn't exist, and happens too early.
 // - something like '-r' to force re-run a task. (or '-f'...)
 // - and maybe '-R' to force re-run task and *all its dependencies*...
 // - need an equivalent to ducttape's 'mark_done' too.
 // - when force running a task, need '-A|--all' to specify all branches? maybe change -x behavior too?
-// - seems like we're getting an error when output dir doesn't exist now...

@@ -14,6 +14,10 @@ plan win {
     reach package_vst_win via (Profile: debug)
 }
 
+plan two_goals {
+    reach cargo_build, xcodebuild via (Profile: debug) * (Framework: au)
+}
+
 module cargo=./test-module
 module xcode=./test-module
 module meson=./test-module
