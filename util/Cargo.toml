@@ -9,5 +9,5 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-thiserror = { workspace = true }
-rustc-hash = { workspace = true }
+thiserror.workspace = true
+rustc-hash.workspace = true

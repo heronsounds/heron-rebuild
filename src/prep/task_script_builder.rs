@@ -16,8 +16,7 @@ impl TaskScriptBuilder<'_> {
     /// shebang line and bash option
     pub fn write_prefix(&mut self) {
         self.strbuf.clear();
-        self.strbuf
-            .push_str("#!/usr/bin/env bash\nset -xeuo pipefail\n\n");
+        self.strbuf.push_str("#!/usr/bin/env bash\nset -xeuo pipefail\n\n");
     }
 
     /// a single variable assignment

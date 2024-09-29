@@ -2,13 +2,11 @@ use anyhow::Result;
 
 use intern::GetStr;
 use util::Bitmask;
+use workflow::{BaseValue, BranchSpec, DirectValue, IdentId, Value, Workflow, NULL_IDENT};
 
-use crate::{BranchSpec, Error, IdentId, Workflow, NULL_IDENT};
+use super::{BranchMasks, Error, RealValueLike};
 
-use super::abstract_value::{BaseValue, DirectValue, Value};
-use super::{BranchMasks, RealValueLike};
-
-/// Just a convenience to keep Workflow's impls from growing too large.
+/// Just a convenience to keep Bfs impls from growing too large.
 #[derive(Debug)]
 pub struct ValueResolver;
 
@@ -36,18 +34,19 @@ impl ValueResolver {
                         return Ok((real_val, masks));
                     }
                 }
-                Err(Error::BranchNotFound(format!("{:?}", value), format!("{branch:?}")).into())
+                Err(Error::BranchNotFound.into())
             }
         }
     }
 
-    fn resolve_direct<T: RealValueLike, B>(
+    fn resolve_direct<T, B>(
         &self,
         value: &DirectValue,
         branch: &BranchSpec,
         wf: &Workflow,
     ) -> Result<(T, BranchMasks<B>)>
     where
+        T: RealValueLike,
         B: Bitmask,
     {
         match value {
@@ -66,13 +65,14 @@ impl ValueResolver {
         }
     }
 
-    fn resolve_base<T: RealValueLike, B>(
+    fn resolve_base<T, B>(
         &self,
         value: &BaseValue,
         branch: &BranchSpec,
         wf: &Workflow,
     ) -> Result<(T, BranchMasks<B>)>
     where
+        T: RealValueLike,
         B: Bitmask,
     {
         use BaseValue::*;
@@ -101,20 +101,25 @@ impl ValueResolver {
         }
     }
 
-    fn get_config_val_and_resolve<T: RealValueLike, B>(
+    fn get_config_val_and_resolve<T, B>(
         &self,
         ident: IdentId,
         branch: &BranchSpec,
         wf: &Workflow,
     ) -> Result<(T, BranchMasks<B>)>
     where
+        T: RealValueLike,
         B: Bitmask,
     {
         let val_id = wf.get_config_value(ident).ok_or_else(|| {
-            let ident = wf.strings.idents.get(ident);
-            Error::NonexistentConfigValue(ident.to_owned())
+            let ident = wf
+                .strings
+                .idents
+                .get(ident)
+                .expect("Ident id should be interned at this point.");
+            Error::UndefinedConfigValue(ident.to_owned())
         })?;
-        let val = wf.get_value(val_id);
+        let val = wf.get_value(val_id)?;
         self.resolve(val, branch, wf)
     }
 }

@@ -10,13 +10,6 @@ use super::Error;
 /// Baseline can mean either that the branch was unspecified, or that it was
 /// specifically intended to be baseline, depending on the use case.
 /// This ambiguity is something we should clean up eventually.
-//
-// TODO i thk we need a new id space for branches, and then we can just store
-// a vec that acts as a branch id -> ident id mapping for each branch.
-// then we can start using bitmasks for branch specs (since all the branch ids
-// will cluster close to 0, instead of being spread out like ident ids),
-// and we can use bitwise operations to deal with hyperbranches.
-// might even put branchpoint names into idents at that point, too.
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
 pub struct BranchSpec {
     branches: IdVec<BranchpointId, IdentId>,
@@ -39,7 +32,7 @@ impl BranchSpec {
     /// Get the branch id if it is specified/non-baseline, otherwise None.
     pub fn get_specified(&self, k: BranchpointId) -> Option<IdentId> {
         if usize::from(k) < self.branches.len() {
-            none_if_baseline(*self.branches.get(k))
+            none_if_baseline(*self.branches.get(k).expect("Requested branchpoint does not exist"))
         } else {
             None
         }
@@ -47,12 +40,14 @@ impl BranchSpec {
 
     /// true if branchpoint k is unspecified/baseline.
     pub fn is_unspecified(&self, k: BranchpointId) -> bool {
-        usize::from(k) >= self.branches.len() || *self.branches.get(k) == NULL_IDENT
+        usize::from(k) >= self.branches.len()
+            || *self.branches.get(k).expect("Requested branchpoint does not exist") == NULL_IDENT
     }
 
     /// true if branchpoint k is specified/non-baseline.
     pub fn is_specified(&self, k: BranchpointId) -> bool {
-        usize::from(k) < self.branches.len() && *self.branches.get(k) != NULL_IDENT
+        usize::from(k) < self.branches.len()
+            && *self.branches.get(k).expect("Requested branchpoint does not exist") != NULL_IDENT
     }
 
     /// remove branch info for branchpoint k, leaving it unspecified/baseline.
@@ -116,11 +111,7 @@ impl BranchSpec {
 
     #[inline]
     fn iter_specified(&self) -> impl Iterator<Item = (usize, Option<IdentId>)> + '_ {
-        self.branches
-            .iter()
-            .cloned()
-            .map(none_if_baseline)
-            .enumerate()
+        self.branches.iter().cloned().map(none_if_baseline).enumerate()
     }
 }
 

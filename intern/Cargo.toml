@@ -9,7 +9,7 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-thiserror = { workspace = true }
-anyhow = { workspace = true }
-rustc-hash = { workspace = true }
-hashbrown = { workspace = true }
+thiserror.workspace = true
+anyhow.workspace = true
+rustc-hash.workspace = true
+hashbrown.workspace = true

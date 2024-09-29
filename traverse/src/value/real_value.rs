@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::{AbstractTaskId, BranchSpec, IdentId, LiteralId, RealTaskId};
+use workflow::{AbstractTaskId, BranchSpec, IdentId, LiteralId, RealTaskId};
 
 use super::Error;
 
@@ -108,9 +108,9 @@ impl RealValueLike for RealOutputOrParam {
 #[derive(Debug, Default, Clone)]
 pub struct BranchMasks<B> {
     /// Branchpoints added at this node
-    pub add: B, //BranchMask,
+    pub add: B,
     /// Branchpoints removed at this node (e.g. from a branch graft)
-    pub rm: B, //BranchMask,
+    pub rm: B,
 }
 
 impl<B: std::ops::BitOrAssign + Copy> BranchMasks<B> {

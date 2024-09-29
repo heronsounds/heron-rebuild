@@ -1,16 +1,19 @@
+use anyhow::Result;
+
 use intern::{GetStr, InternStr, LooseInterner, PackedInterner, TypedInterner};
 use syntax::ast;
 
 use crate::value::create_value;
 use crate::{
-    AbstractTaskId, BaselineBranches, BranchMask, BranchpointId, Error, IdentId, LiteralId,
-    ModuleId, RunStrId, Value,
+    AbstractTaskId, BaselineBranches, BranchpointId, Error, IdentId, LiteralId, ModuleId, RunStrId,
+    Value,
 };
 
 /// Stores all the interned strings associated with a Workflow.
 #[derive(Debug)]
 pub struct WorkflowStrings {
     /// Names of branchpoints
+    // TODO this could just be a vec of IdentIds and we store the names there!
     pub branchpoints: TypedInterner<BranchpointId, PackedInterner<u8, u8>>,
     /// Names of tasks
     pub tasks: TypedInterner<AbstractTaskId, PackedInterner<u8, u16>>,
@@ -31,7 +34,8 @@ impl Default for WorkflowStrings {
     fn default() -> Self {
         let mut idents = PackedInterner::with_capacity_and_avg_len(64, 1024);
         // seed idents with an empty value, so we can use 0 as a special val:
-        idents.intern("");
+        // TODO if we just start using branch masks instead of ident ids, we won't need this.
+        idents.intern("").expect("Ident interner seeding should never fail");
 
         Self {
             branchpoints: TypedInterner::new(PackedInterner::with_capacity_and_str_len(8, 32)),
@@ -39,7 +43,7 @@ impl Default for WorkflowStrings {
             idents: TypedInterner::new(idents),
             literals: TypedInterner::new(LooseInterner::with_capacity_and_str_len(64, 4096)),
             modules: TypedInterner::new(PackedInterner::with_capacity_and_str_len(8, 16)),
-            baselines: BaselineBranches::with_capacity(BranchMask::BITS as usize),
+            baselines: BaselineBranches::with_capacity(8),
             // we'll re-alloc these later when we need them:
             run: TypedInterner::new(PackedInterner::with_capacity_and_str_len(0, 0)),
         }
@@ -60,23 +64,28 @@ impl WorkflowStrings {
 
     /// Create a value from its ast representation.
     #[inline]
-    pub fn create_value(&mut self, lhs: ast::Ident, rhs: ast::Rhs) -> Value {
+    pub fn create_value(&mut self, lhs: ast::Ident, rhs: ast::Rhs) -> Result<Value> {
         create_value(self, lhs, rhs)
     }
 
     /// Used while loading branchpoints.txt to make sure our branchpoints are
     /// ordered consistently, and baselines stay consistent between runs.
-    pub fn pre_load_baseline(&mut self, branchpoint: &str, branchval: &str) {
-        let k = self.branchpoints.intern(branchpoint);
-        let v = self.idents.intern(branchval);
+    pub fn pre_load_baseline(&mut self, branchpoint: &str, branchval: &str) -> Result<()> {
+        let k = self.branchpoints.intern(branchpoint)?;
+        let v = self.idents.intern(branchval)?;
         self.baselines.add(k, v);
+        Ok(())
     }
 
-    pub fn add_branchpoint(&mut self, branchpoint: &str) -> BranchpointId {
+    pub fn add_branchpoint(&mut self, branchpoint: &str) -> Result<BranchpointId> {
         self.branchpoints.intern(branchpoint)
     }
 
-    pub fn add_branch(&mut self, _branchpoint: BranchpointId, branch_name: &str) -> IdentId {
+    pub fn add_branch(
+        &mut self,
+        _branchpoint: BranchpointId,
+        branch_name: &str,
+    ) -> Result<IdentId> {
         self.idents.intern(branch_name)
     }
 
@@ -107,8 +116,8 @@ impl WorkflowStrings {
         // NB these must be in order of where they appear in the string!
         vars: &[(IdentId, LiteralId)],
         strbuf: &mut String,
-    ) -> Result<(), Error> {
-        let orig_str = self.literals.get(orig);
+    ) -> Result<()> {
+        let orig_str = self.literals.get(orig)?;
         strbuf.push_str(orig_str);
 
         let mut var_str = String::with_capacity(16);
@@ -119,10 +128,10 @@ impl WorkflowStrings {
         let mut scan_start = 0;
         for (ident, val) in vars {
             var_str.truncate(1);
-            let ident_str = self.idents.get(*ident);
+            let ident_str = self.idents.get(*ident)?;
             var_str.push_str(ident_str);
 
-            let val_str = self.literals.get(*val);
+            let val_str = self.literals.get(*val)?;
 
             if let Some(offset) = strbuf[scan_start..].find(&var_str) {
                 let start = scan_start + offset;
@@ -130,7 +139,7 @@ impl WorkflowStrings {
                 strbuf.replace_range(start..end, val_str);
                 scan_start = start + val_str.len();
             } else {
-                return Err(Error::Interp(var_str, strbuf.clone()));
+                return Err(Error::Interp(var_str, strbuf.clone()).into());
             }
         }
         Ok(())
@@ -141,13 +150,13 @@ impl WorkflowStrings {
 mod test {
     use super::*;
     #[test]
-    fn test_interpolate() -> Result<(), Error> {
+    fn test_interpolate() -> Result<()> {
         let mut strings = WorkflowStrings::default();
         let orig_id = strings.literals.intern("$v1 and $v2 $v1-$v2.$v2 etc");
-        let v1 = strings.idents.intern("v1");
-        let v2 = strings.idents.intern("v2");
-        let v1_val = strings.literals.intern("value for var one");
-        let v2_val = strings.literals.intern("$$xyz$$");
+        let v1 = strings.idents.intern("v1")?;
+        let v2 = strings.idents.intern("v2")?;
+        let v1_val = strings.literals.intern("value for var one")?;
+        let v2_val = strings.literals.intern("$$xyz$$")?;
 
         let mut buf = String::with_capacity(32);
         buf.push_str("prefix.");
@@ -168,7 +177,7 @@ mod test {
         );
 
         // now try a bad one:
-        let v3 = strings.idents.intern("v3_wont_be_found");
+        let v3 = strings.idents.intern("v3_wont_be_found")?;
         let res = strings.make_interpolated(orig_id, &[(v3, v1_val)], &mut buf);
         assert!(res.is_err());
 

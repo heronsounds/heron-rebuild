@@ -74,10 +74,7 @@ impl Fs {
             }
         } else if !self.output_prefix.is_dir() {
             return Err(Error::NotDirectory(
-                self.output_prefix
-                    .to_str()
-                    .ok_or(PathEncodingError)?
-                    .to_string(),
+                self.output_prefix.to_str().ok_or(PathEncodingError)?.to_string(),
             )
             .into());
         } else if verbose {
@@ -192,10 +189,10 @@ impl Fs {
         fs::read_dir(path)
     }
 
+    // Note that paths must be absolute for this to work properly:
     fn is_whitelisted<T: AsRef<Path>>(&self, path: T) -> bool {
         let path = path.as_ref();
 
-        // TODO need to make paths absolute...
         if path.starts_with(&self.output_prefix) {
             return true;
         }

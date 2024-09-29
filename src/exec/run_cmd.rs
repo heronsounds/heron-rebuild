@@ -28,17 +28,13 @@ pub fn run_cmd(
     if verbose {
         eprintln!("{}", "Running command...".magenta());
     }
-    let mut cmd = cmd
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap_or_else(|_| {
-            panic!(
-                "failed to execute child process {:?} {:?}",
-                cmd.get_program(),
-                cmd.get_args(),
-            )
-        });
+    let mut cmd = cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap_or_else(|_| {
+        panic!(
+            "failed to execute child process {:?} {:?}",
+            cmd.get_program(),
+            cmd.get_args(),
+        )
+    });
 
     let child_out = cmd.stdout.take().expect("Cannot attach to child stdout");
     let child_err = cmd.stderr.take().expect("Cannot attach to child stderr");

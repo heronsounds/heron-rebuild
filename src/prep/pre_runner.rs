@@ -35,14 +35,14 @@ impl<'a> PreRunner<'a> {
     /// - to be deleted, directories recreated, and re-run
     /// - new, directories will be created and run for the first time
     /// - if verbose, will also print out modules used.
-    pub fn print_actions(&self, actions: &Actions) {
+    pub fn print_actions(&self, actions: &Actions) -> Result<()> {
         if !actions.completed.is_empty() {
             eprintln!(
                 "\nThe following tasks are {} and will not run:",
                 "already complete".green()
             );
             for id in &actions.completed {
-                eprintln!("{} {}", "COMPLETED".green(), self.wf.strings.run.get(*id));
+                eprintln!("{} {}", "COMPLETED".green(), self.wf.strings.run.get(*id)?);
             }
         }
 
@@ -55,7 +55,7 @@ impl<'a> PreRunner<'a> {
                 eprintln!(
                     "{} {}",
                     "DELETE".red(),
-                    self.wf.strings.run.get(to_delete.print)
+                    self.wf.strings.run.get(to_delete.print)?
                 );
             }
         }
@@ -66,7 +66,7 @@ impl<'a> PreRunner<'a> {
                 eprintln!(
                     "{} {}",
                     "RUN".green(),
-                    self.wf.strings.run.get(runner.print_id)
+                    self.wf.strings.run.get(runner.print_id)?
                 );
             }
         }
@@ -76,13 +76,14 @@ impl<'a> PreRunner<'a> {
             for module in &actions.modules {
                 eprintln!(
                     "{}: {}",
-                    self.wf.strings.modules.get(*module).magenta(),
-                    self.wf.get_module_path(*module),
+                    self.wf.strings.modules.get(*module)?.magenta(),
+                    self.wf.get_module_path(*module)?,
                 );
             }
         }
 
         eprintln!();
+        Ok(())
     }
 
     /// actually clean up and prepare the output directory for running the workflow.
@@ -95,7 +96,7 @@ impl<'a> PreRunner<'a> {
         // In the future when we invalidate a task and its antecedents,
         // we'd like to leave a log line in a text file so we can audit over multiple runs.
         for to_delete in &actions.to_delete {
-            let realization = self.wf.strings.run.get(to_delete.realization);
+            let realization = self.wf.strings.run.get(to_delete.realization)?;
             eprintln!("{} {}", "Deleting".red(), realization);
             self.fs
                 .delete_dir(realization)
@@ -110,15 +111,13 @@ impl<'a> PreRunner<'a> {
         let mut task_sh_path = PathBuf::with_capacity(128);
 
         for builder in actions.to_run {
-            let realization = self.wf.strings.run.get(builder.realization_id);
+            let realization = self.wf.strings.run.get(builder.realization_id)?;
 
             eprintln!("{} {}", "Creating".green(), realization);
-            self.fs
-                .create_dir(realization)
-                .context("creating realization dir")?;
+            self.fs.create_dir(realization).context("creating realization dir")?;
 
-            let symlink = self.wf.strings.run.get(builder.symlink_id);
-            let link_target = self.wf.strings.run.get(builder.link_target_id);
+            let symlink = self.wf.strings.run.get(builder.symlink_id)?;
+            let link_target = self.wf.strings.run.get(builder.link_target_id)?;
 
             if self.verbose {
                 eprintln!("{} {} to {}", "Symlinking".magenta(), symlink, link_target);
@@ -131,15 +130,13 @@ impl<'a> PreRunner<'a> {
 
             // NB this puts the contents of task.sh into self.strbuf:
             let runner =
-                builder.into_task_runner(&self.wf.strings.run, self.wf, &mut task_sh_contents);
+                builder.into_task_runner(&self.wf.strings.run, self.wf, &mut task_sh_contents)?;
 
             if self.verbose {
                 eprintln!("{}", "Writing task.sh file.".magenta());
             }
             let task_sh = self.fs.task_sh(realization, &mut task_sh_path);
-            self.fs
-                .write_file(task_sh, &task_sh_contents)
-                .context("writing task.sh file")?;
+            self.fs.write_file(task_sh, &task_sh_contents).context("writing task.sh file")?;
 
             runners.push(runner);
         }

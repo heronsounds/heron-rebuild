@@ -241,6 +241,7 @@ dependencies = [
  "heron-rebuild-util",
  "heron-rebuild-workflow",
  "log",
+ "thiserror",
 ]
 
 [[package]]

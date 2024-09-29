@@ -25,7 +25,6 @@ const INDEX_MASKS_U64: [u64; 64] = [
 
 /// Trait for types that can be used as the underlying type of a bitmask.
 /// In practice, should only be implemented for unsigned int types.
-// TODO: make a hierarchical version for sizes beyond 128...
 pub trait Bitmask:
     Sized
     + 'static

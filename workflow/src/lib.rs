@@ -2,10 +2,7 @@ mod strings;
 use strings::WorkflowStrings;
 
 mod value;
-pub use value::{
-    BranchMasks, PartialRealInput, RealInput, RealOutput, RealOutputOrParam, RealParam,
-    RealValueLike, Value, ValueResolver,
-};
+pub use value::{BaseValue, DirectValue, Value};
 
 mod task;
 pub use task::{Task, TaskVars};
@@ -14,9 +11,7 @@ mod plan;
 pub use plan::{Plan, Subplan};
 
 mod branch;
-pub use branch::{
-    make_compact_string, parse_compact_branch_str, BaselineBranches, BranchSpec, BranchStrs,
-};
+pub use branch::{BaselineBranches, BranchSpec, BranchStrs};
 
 mod id;
 pub use id::{
@@ -27,20 +22,10 @@ pub use id::{
 mod workflow;
 pub use workflow::{SizeHints, Workflow};
 
-pub type BranchMask = u8;
-
+// used to separate branchpoint from branch value e.g. "Profile.debug"
 pub const BRANCH_KV_DELIM: char = '.';
+// used to separate multiple branchpoint/value pairs e.g. "Profile.debug+Os.windows"
 pub const BRANCH_DELIM: char = '+';
-
-// types and sizes:
-// type IdSize = u8;
-
-// type BRANCHPOINT_ADDR_SIZE = u8;
-// type TASK_ADDR_SIZE = u16;
-// type IDENT_ADDR_SIZE = u16;
-// type MODULE_ADDR_SIZE = u8;
-// type LITERAL_ADDR_SIZE = u16;
-// type RUN_ADDR_SIZE = u16;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -53,12 +38,10 @@ pub enum Error {
     MultipleModulesDefined,
     #[error("Dot parameters (\".var\") are not yet supported")]
     DotParamsUnsupported,
-    // #[error("Non-literal values not supported in interpolated variables")]
-    // NonLiteralInterp,
-    #[error("Matching branch not found (val: {0}, branch: {1}")]
-    BranchNotFound(String, String),
     #[error("Unable to interpolate \"{0}\" into \"{1}\"")]
     Interp(String, String),
-    #[error("Reference to nonexistent config value: {0}")]
-    NonexistentConfigValue(String),
+    #[error("{0} does not exist: '{1}'")]
+    ItemNotFound(String, String),
+    #[error("Plan is empty: '{0}'")]
+    EmptyPlan(String),
 }

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use intern::GetStr;
 use traverse::Node;
-use workflow::{make_compact_string, BranchStrs, Workflow};
+use workflow::{BranchStrs, Workflow};
 
 use crate::fs::Fs;
 
@@ -11,9 +11,13 @@ use crate::fs::Fs;
 pub struct TaskDirPaths {
     /// used for constructing other paths
     scratch: PathBuf,
+    /// absolute path to the task realization dir
     realization: PathBuf,
+    /// task realization dir, relative to the root task dir
     realization_relative: PathBuf,
+    /// convenient symlink to the task realization dir (absolute)
     link_src: PathBuf,
+    /// absolute path to module used by task, or empty if no module
     module: PathBuf,
 }
 
@@ -35,28 +39,27 @@ impl TaskDirPaths {
         fs: &Fs,
         branch_strs: &mut BranchStrs,
         strbuf: &mut String,
-    ) {
+    ) -> Result<()> {
         strbuf.clear();
-        make_compact_string(&task.key.branch, wf, strbuf);
+        branch_strs.make_compact_string(&task.key.branch, wf, strbuf)?;
         fs.realization_relative(&*strbuf, &mut self.realization_relative);
 
-        let base = fs.task_base(
-            wf.strings.tasks.get(task.key.abstract_task_id),
-            &mut self.scratch,
-        );
+        let base = fs.task_base(wf.strings.tasks.get(task.key.id)?, &mut self.scratch);
 
         fs.realization(base, &self.realization_relative, &mut self.realization);
         fs.link_src(
             base,
-            branch_strs.get_or_insert(&task.key.branch, wf),
+            branch_strs.get_or_insert(&task.key.branch, wf)?,
             &mut self.link_src,
         );
 
         self.module.clear();
         if let Some(module_id) = task.module {
-            let path_str = wf.get_module_path(module_id);
+            let path_str = wf.get_module_path(module_id)?;
             self.module.push(path_str);
         }
+
+        Ok(())
     }
 
     pub fn realization(&self) -> &Path {

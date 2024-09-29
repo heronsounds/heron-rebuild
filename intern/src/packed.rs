@@ -1,5 +1,7 @@
 use std::hash::BuildHasher;
 
+use anyhow::Result;
+
 use super::{GetStr, InternStr, KeyToStr, StrToKey, Strs};
 
 /// Interner that checks for duplicates and will only intern a given string once.
@@ -35,7 +37,7 @@ where
 {
     type Key = Key;
 
-    fn get(&self, k: Key) -> &str {
+    fn get(&self, k: Key) -> Result<&str> {
         self.key_to_str.get(k)
     }
 
@@ -56,7 +58,7 @@ where
 {
     type Key = Key;
 
-    fn intern<T: AsRef<str>>(&mut self, s: T) -> Key {
+    fn intern<T: AsRef<str>>(&mut self, s: T) -> Result<Key> {
         let s = s.as_ref();
         self.str_to_key.intern(s, &mut self.key_to_str)
     }

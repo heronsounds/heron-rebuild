@@ -46,9 +46,9 @@ id!(BranchpointId, u8);
 id!(IdentId, u16);
 id!(LiteralId, u8);
 id!(AbstractTaskId, u8);
-id!(AbstractValueId, u8);
+id!(AbstractValueId, u16);
 
-id!(RealTaskId, u8);
-id!(RealValueId, u8);
+id!(RealTaskId, u16);
+id!(RealValueId, u16);
 
 id!(RunStrId, u32);

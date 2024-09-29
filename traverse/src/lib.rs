@@ -24,9 +24,32 @@ mod cleanup;
 /// struct returned by this mod
 mod traversal;
 pub use traversal::Traversal;
-use traversal::TraversalBuilder;
+
+mod traversal_builder;
+use traversal_builder::TraversalBuilder;
 
 /// useful structs, including [`Node`]
 mod node;
 use node::NodeBuilder;
 pub use node::{Node, RealTaskKey};
+
+mod value;
+pub use value::{RealInput, RealOutput, RealOutputOrParam, RealParam};
+
+mod errors;
+pub use errors::Errors;
+
+// so we can have max ~16k task realizations, which should be enough.
+// this is before deduping though, so realistically the cap is lower.
+type NodeIdx = u16;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(
+        "Out of node indices; {0} is greater than max index \
+        (this may be due to a circular dependency)"
+    )]
+    OutOfIndices(usize),
+    #[error("Task depends on itself: {0}")]
+    ReflexiveTask(String),
+}

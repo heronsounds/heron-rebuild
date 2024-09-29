@@ -3,11 +3,11 @@ use std::path::{Path, PathBuf};
 
 use intern::{GetStr, InternStr};
 use syntax::ast;
-use util::{Bitmask, HashMap, Hasher, IdVec, PathEncodingError};
+use util::{HashMap, Hasher, IdVec, PathEncodingError};
 
 use crate::{
-    AbstractTaskId, AbstractValueId, BranchMasks, BranchSpec, Error, IdentId, LiteralId, ModuleId,
-    Plan, RealValueLike, Task, Value, ValueResolver, WorkflowStrings,
+    branch::parse_compact_branch_str, AbstractTaskId, AbstractValueId, BranchSpec, Error, IdentId,
+    LiteralId, ModuleId, Plan, Task, Value, WorkflowStrings,
 };
 
 /// Used to initialize collections later in the process.
@@ -37,8 +37,6 @@ pub struct Workflow {
     values: IdVec<AbstractValueId, Value>,
     /// sizes we'll use to allocate collections later
     sizes: SizeHints,
-    /// utility for resolving values
-    resolver: ValueResolver,
 }
 
 impl Default for Workflow {
@@ -51,7 +49,6 @@ impl Default for Workflow {
             modules: IdVec::with_capacity(8),
             values: IdVec::with_capacity(128),
             sizes: SizeHints::default(),
-            resolver: ValueResolver,
         }
     }
 }
@@ -86,21 +83,34 @@ impl Workflow {
 
     /// Get a string containing the path to the module with the given id.
     #[inline]
-    pub fn get_module_path(&self, module: ModuleId) -> &str {
-        let lit_id = self.modules.get(module);
+    pub fn get_module_path(&self, module: ModuleId) -> Result<&str> {
+        let lit_id = self.modules.get(module).ok_or_else(|| {
+            Error::ItemNotFound(
+                "Module".to_owned(),
+                self.strings.modules.get(module).unwrap().to_owned(),
+            )
+        })?;
         self.strings.literals.get(*lit_id)
     }
 
     /// Get the task with the given id.
     #[inline]
-    pub fn get_task(&self, task: AbstractTaskId) -> &Task {
-        self.tasks.get(task)
+    pub fn get_task(&self, task: AbstractTaskId) -> Result<&Task> {
+        self.tasks.get(task).filter(|t| t.exists).ok_or_else(|| {
+            Error::ItemNotFound(
+                "Task".to_owned(),
+                self.strings.tasks.get(task).unwrap().to_owned(),
+            )
+            .into()
+        })
     }
 
     /// Get the value with the given id.
     #[inline]
-    pub fn get_value(&self, value: AbstractValueId) -> &Value {
-        self.values.get(value)
+    pub fn get_value(&self, value: AbstractValueId) -> Result<&Value> {
+        self.values.get(value).ok_or_else(|| {
+            Error::ItemNotFound("Value".to_owned(), format!("id {:?}", value)).into()
+        })
     }
 
     #[inline]
@@ -121,21 +131,15 @@ impl Workflow {
                 return Ok(plan);
             }
         }
-        let plan_name = self.strings.idents.get(plan_name);
+        let plan_name = self.strings.idents.get(plan_name)?;
         Err(Error::PlanNotFound(plan_name.to_owned()).into())
     }
 
-    /// Resolve the given value for execution on the given branch.
+    /// Parse "compact" branch string (i.e. with "Baseline.baseline" standing in for baseline branches)
+    /// into a `BranchSpec`.
     #[inline]
-    pub fn resolve<T: RealValueLike, B>(
-        &self,
-        val: &Value,
-        branch: &BranchSpec,
-    ) -> Result<(T, BranchMasks<B>)>
-    where
-        B: Bitmask,
-    {
-        self.resolver.resolve(val, branch, self)
+    pub fn parse_compact_branch_str(&mut self, s: &str) -> Result<BranchSpec> {
+        parse_compact_branch_str(self, s)
     }
 }
 
@@ -143,16 +147,16 @@ impl Workflow {
 impl Workflow {
     fn add_config(&mut self, assts: Vec<(&str, ast::Rhs)>) -> Result<()> {
         for (k, v) in assts {
-            let v = self.strings.create_value(k, v);
+            let v = self.strings.create_value(k, v)?;
             let vid = self.values.push(v);
-            let k = self.strings.idents.intern(k);
+            let k = self.strings.idents.intern(k)?;
             self.config.insert(k, vid);
         }
         Ok(())
     }
 
     fn add_task(&mut self, task: ast::TasklikeBlock) -> Result<()> {
-        let name_id = self.strings.tasks.intern(task.name);
+        let name_id = self.strings.tasks.intern(task.name)?;
         let task = Task::create(task, &mut self.strings, &mut self.values)?;
         self.update_sizes(&task);
         // NB we have no easy, surefire way to tell if a task with the same
@@ -174,8 +178,15 @@ impl Workflow {
     }
 
     fn add_plan(&mut self, plan: ast::Plan) -> Result<()> {
-        let plan_id = self.strings.idents.intern(plan.name);
+        let plan_id = self.strings.idents.intern(plan.name)?;
         let ast::Plan { cross_products, .. } = plan;
+
+        // the parser will catch this, but nice to have the error just in case
+        // that ever changes:
+        if cross_products.is_empty() {
+            return Err(Error::EmptyPlan(plan.name.to_owned()).into());
+        }
+
         let plan = Plan::create(&mut self.strings, cross_products)
             .with_context(|| format!("while creating AST for plan \"{}\"", plan.name))?;
 
@@ -186,7 +197,7 @@ impl Workflow {
     }
 
     fn add_module(&mut self, name: &str, path: ast::Rhs, config_dir: &Path) -> Result<()> {
-        let id = self.strings.modules.intern(name);
+        let id = self.strings.modules.intern(name)?;
         if let ast::Rhs::Literal { val } = path {
             let mut path = PathBuf::from(val);
 
@@ -203,7 +214,7 @@ impl Workflow {
                 );
             }
             let path_str = path.to_str().ok_or(PathEncodingError)?;
-            let literal_id = self.strings.literals.intern(path_str);
+            let literal_id = self.strings.literals.intern(path_str)?;
             self.modules.insert(id, literal_id);
             Ok(())
         } else {

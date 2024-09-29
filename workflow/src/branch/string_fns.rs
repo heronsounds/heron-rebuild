@@ -16,7 +16,7 @@ const BASELINE_STR_PLUS: &str = "Baseline.baseline+";
 
 /// Branch string with all branches specified, even if they are baseline.
 /// If there are no branches at all, uses "Baseline.baseline".
-pub fn make_full_string(branch: &BranchSpec, wf: &Workflow, buf: &mut String) {
+pub fn make_full_string(branch: &BranchSpec, wf: &Workflow, buf: &mut String) -> Result<()> {
     let mut first = true;
     for (k, _) in wf.strings.baselines.iter() {
         if k >= branch.len() {
@@ -29,12 +29,13 @@ pub fn make_full_string(branch: &BranchSpec, wf: &Workflow, buf: &mut String) {
             } else {
                 buf.push(BRANCH_DELIM);
             }
-            push_branch_pair(k, v, wf, buf);
+            push_branch_pair(k, v, wf, buf)?;
         }
     }
     if buf.is_empty() {
         buf.push_str(BASELINE_STR);
     }
+    Ok(())
 }
 
 /// Branch string with only non-baseline branches specified.
@@ -42,7 +43,7 @@ pub fn make_full_string(branch: &BranchSpec, wf: &Workflow, buf: &mut String) {
 /// Starts with "Baseline.baseline".
 /// These strings will always stay valid between runs, as long
 /// as the branch ordering doesn't change (specified in branchpoints.txt).
-pub fn make_compact_string(branch: &BranchSpec, wf: &Workflow, buf: &mut String) {
+pub fn make_compact_string(branch: &BranchSpec, wf: &Workflow, buf: &mut String) -> Result<()> {
     let mut first = true;
     let mut needs_baseline = false;
     for (k, baseline_v) in wf.strings.baselines.iter() {
@@ -59,7 +60,7 @@ pub fn make_compact_string(branch: &BranchSpec, wf: &Workflow, buf: &mut String)
                 } else {
                     buf.push(BRANCH_DELIM);
                 }
-                push_branch_pair(k, v, wf, buf);
+                push_branch_pair(k, v, wf, buf)?;
             }
         }
     }
@@ -69,12 +70,15 @@ pub fn make_compact_string(branch: &BranchSpec, wf: &Workflow, buf: &mut String)
     } else if needs_baseline {
         buf.insert_str(0, BASELINE_STR_PLUS);
     }
+
+    Ok(())
 }
 
-fn push_branch_pair(k: BranchpointId, v: IdentId, wf: &Workflow, buf: &mut String) {
-    buf.push_str(wf.strings.branchpoints.get(k));
+fn push_branch_pair(k: BranchpointId, v: IdentId, wf: &Workflow, buf: &mut String) -> Result<()> {
+    buf.push_str(wf.strings.branchpoints.get(k)?);
     buf.push(BRANCH_KV_DELIM);
-    buf.push_str(wf.strings.idents.get(v));
+    buf.push_str(wf.strings.idents.get(v)?);
+    Ok(())
 }
 
 /// Parse a string of the kind created by `make_compact_string` into a `BranchSpec`.
@@ -83,8 +87,8 @@ pub fn parse_compact_branch_str(wf: &mut Workflow, s: &str) -> Result<BranchSpec
     for kv in s.split(BRANCH_DELIM) {
         if kv != BASELINE_STR {
             if let Some((k, v)) = kv.split_once(BRANCH_KV_DELIM) {
-                let k = wf.strings.branchpoints.intern(k);
-                let v = wf.strings.idents.intern(v);
+                let k = wf.strings.branchpoints.intern(k)?;
+                let v = wf.strings.idents.intern(v)?;
                 branch.insert(k, v);
             } else {
                 return Err(Error::InvalidBranchString(kv.to_owned()).into());

@@ -34,8 +34,6 @@ pub fn run() -> Result<(), anyhow::Error> {
         2 => log::LevelFilter::Debug,
         _ => log::LevelFilter::Trace,
     };
-    // TODO why did I add this here?
-    // std::env::set_var("RUST_BACKTRACE", "1");
     simple_logging::log_to_stderr(log_level);
 
     // RUN THE THING /////////////////
@@ -44,10 +42,3 @@ pub fn run() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
-
-// TODO from building find-fix:
-// - runtime error messages shd say which task they're from
-// - something like '-r' to force re-run a task. (or '-f'...)
-// - and maybe '-R' to force re-run task and *all its dependencies*...
-// - need an equivalent to ducttape's 'mark_done' too.
-// - when force running a task, need '-A|--all' to specify all branches? maybe change -x behavior too?

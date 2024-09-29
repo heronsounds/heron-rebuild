@@ -23,6 +23,10 @@ plan two_subplans {
     reach xcodebuild via (Profile: debug) * (Framework: au)
 }
 
+plan check_num_branch {
+    reach cargo_build via (N: 0 1)
+}
+
 module cargo=./test-module
 module xcode=./test-module
 module meson=./test-module
@@ -30,6 +34,11 @@ module meson=./test-module
 global {
     macos_sdk="macosx11.1"
     macos_deployment_target="10.15"
+
+    T=(
+        Profile: debug=willthiswork release=hm)
+
+    N=(N: 0=0 1=1)
 
     cargo_profile=(Profile: debug release)
     cargo_release_flag=(Profile: debug="" release="--release")
@@ -185,7 +194,6 @@ task meson_build @meson
     :: meson_dir=/Users/me/code/meson-test/pgs-1-win
 {
     rustlibdir=$(dirname $rustlib)
-    # TODO maybe this should be an entire meson setup in a new build dir
     meson configure build-llvm-win -Drustlibdir=$rustlibdir
 
     meson compile -C build-llvm-win || true
@@ -202,9 +210,7 @@ task package_vst_win
     > bundle
 {
     mkdir -p $bundle/Contents/x86_64-win
-    # TODO is this name duplication a problem?
     cp $dll $bundle/Contents/x86_64-win/charmer.vst3
     cp $rust_dll $bundle/Contents/x86_64-win/charmer.dll
     cp $rust_lib $bundle/Contents/x86_64-win/charmer.dll.lib
-    # TODO Contents/arm64-win or arm64ec-win
 }

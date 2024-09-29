@@ -12,6 +12,8 @@ pub enum Error {
     InvalidBranchFlag(String),
     #[error("Invalid config path has no parent (should not happen)")]
     ConfigHasNoParent,
+    #[error("Config file '{0}' does not exist")]
+    ConfigDoesNotExist(String),
 }
 
 /// Representation of '-b' and '-B' arg values
@@ -83,7 +85,7 @@ impl TryFrom<Args> for Settings {
         if config.exists() {
             config = config.canonicalize()?;
         } else {
-            todo!("add an error if config file doesn't exist here");
+            return Err(Error::ConfigDoesNotExist(args.config.to_owned()).into());
         }
         let output = PathBuf::from(&args.output);
 

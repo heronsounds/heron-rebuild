@@ -1,13 +1,15 @@
 use workflow::{
-    AbstractTaskId, BranchMasks, BranchSpec, IdentId, LiteralId, ModuleId, RealValueId, Task,
-    TaskVars,
+    AbstractTaskId, BranchSpec, IdentId, LiteralId, ModuleId, RealValueId, Task, TaskVars,
 };
+
+use crate::value::BranchMasks;
+use crate::NodeIdx;
 
 /// Unique id of a resolved (real) task: an abstract task id
 /// plus the branch that resolves it to an actual task.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct RealTaskKey {
-    pub abstract_task_id: AbstractTaskId,
+    pub id: AbstractTaskId,
     pub branch: BranchSpec,
 }
 
@@ -17,7 +19,7 @@ pub struct NodeBuilder<B> {
     /// Unique id of the task contained in this node.
     pub key: RealTaskKey,
     /// traversal index of next task. if equal to this task's idx, the task is terminal.
-    pub next_idx: usize, // u32?
+    pub next_idx: NodeIdx,
     /// true if this task has no antecedents.
     pub is_root: bool,
     /// inputs, outputs, and params for this task.
@@ -35,7 +37,7 @@ pub struct NodeBuilder<B> {
 impl<B: Default> NodeBuilder<B> {
     /// Create a new Node with the given `key`, `next_idx`, and values
     /// copied from `task`.
-    pub fn new(key: RealTaskKey, next_idx: usize, task: &Task) -> Self {
+    pub fn new(key: RealTaskKey, next_idx: NodeIdx, task: &Task) -> Self {
         NodeBuilder {
             key,
             next_idx,

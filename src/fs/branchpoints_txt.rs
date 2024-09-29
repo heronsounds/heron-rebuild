@@ -20,7 +20,21 @@ impl Fs {
         strbuf: &mut String,
         ui: &Ui,
     ) -> Result<()> {
-        read_branchpoints_file(self, branchpoints_file, strbuf, wf, ui)
+        ui.verbose_progress("Reading branchpoints.txt file");
+        if self.exists(branchpoints_file) {
+            self.read_to_buf(branchpoints_file, strbuf)?;
+            for kv in strbuf.split_whitespace() {
+                if let Some((k, v)) = kv.split_once(BRANCH_KV_DELIM) {
+                    wf.strings.pre_load_baseline(k, v)?;
+                } else {
+                    return Err(Error::InvalidBranchpointsFile.into());
+                }
+            }
+            ui.done();
+        } else {
+            ui.verbose_msg("\nNo branchpoints.txt file. Continuing.");
+        }
+        Ok(())
     }
 
     /// Write info from `wf` into `branchpoints_file`.
@@ -30,55 +44,20 @@ impl Fs {
         wf: &Workflow,
         strbuf: &mut String,
     ) -> Result<()> {
-        write_branchpoints_file(self, branchpoints_file, strbuf, wf)
-    }
-}
-
-/// Load branchpoints from branchpoints.txt into the workflow.
-fn read_branchpoints_file(
-    fs: &Fs,
-    branchpoints_file: &Path,
-    strbuf: &mut String,
-    wf: &mut Workflow,
-    ui: &Ui,
-) -> Result<()> {
-    ui.verbose_progress("Reading branchpoints.txt file");
-    if fs.exists(branchpoints_file) {
-        fs.read_to_buf(branchpoints_file, strbuf)?;
-        for kv in strbuf.split_whitespace() {
-            if let Some((k, v)) = kv.split_once(BRANCH_KV_DELIM) {
-                wf.strings.pre_load_baseline(k, v);
-            } else {
-                return Err(Error::InvalidBranchpointsFile.into());
-            }
+        if self.exists(branchpoints_file) {
+            // TODO save a backup in case the app crashes here...
+            self.delete_file(branchpoints_file)?;
         }
-        ui.done();
-    } else {
-        ui.verbose_msg("\nNo branchpoints.txt file. Continuing.");
+        strbuf.clear();
+        for (k, v) in wf.strings.baselines.iter() {
+            let branchpt = wf.strings.branchpoints.get(k.into())?;
+            let branchval = wf.strings.idents.get(*v)?;
+            strbuf.push_str(branchpt);
+            strbuf.push(BRANCH_KV_DELIM);
+            strbuf.push_str(branchval);
+            strbuf.push('\n');
+        }
+        self.write_file(branchpoints_file, strbuf)?;
+        Ok(())
     }
-    Ok(())
-}
-
-/// Write branchpoints from the workflow to branchpoints.txt.
-fn write_branchpoints_file(
-    fs: &Fs,
-    branchpoints_file: &Path,
-    strbuf: &mut String,
-    wf: &Workflow,
-) -> Result<()> {
-    if fs.exists(branchpoints_file) {
-        // TODO save a backup in case the app crashes here...
-        fs.delete_file(branchpoints_file)?;
-    }
-    strbuf.clear();
-    for (k, v) in wf.strings.baselines.iter() {
-        let branchpt = wf.strings.branchpoints.get(k.into());
-        let branchval = wf.strings.idents.get(*v);
-        strbuf.push_str(branchpt);
-        strbuf.push(BRANCH_KV_DELIM);
-        strbuf.push_str(branchval);
-        strbuf.push('\n');
-    }
-    fs.write_file(branchpoints_file, strbuf)?;
-    Ok(())
 }

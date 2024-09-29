@@ -72,12 +72,6 @@ impl Ui {
         }
     }
 
-    // pub fn verbose_progress_display<T: std::fmt::Display>(&self, msg: &str, arg: T) {
-    //     if self.verbose {
-    //         eprint!("{} {}...", msg.magenta(), arg);
-    //     }
-    // }
-
     pub fn verbose_progress_debug<T: std::fmt::Debug>(&self, msg: &str, arg: T) {
         if self.verbose {
             eprint!("{} {:?}... ", msg.magenta(), arg);

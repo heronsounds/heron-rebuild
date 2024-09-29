@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::process::Command;
 
 use intern::{GetStr, PackedInterner, TypedInterner};
@@ -50,7 +51,7 @@ impl TaskRunnerBuilder {
         run_strs: &TypedInterner<RunStrId, PackedInterner>,
         wf: &Workflow,
         strbuf: &mut String,
-    ) -> TaskRunner {
+    ) -> Result<TaskRunner> {
         // we will store inputs and outputs (so we can verify them before and after running),
         // but params can be discarded after we add them to the command.
         // however, we don't need the ident_ids, just the file handles.
@@ -64,10 +65,10 @@ impl TaskRunnerBuilder {
         let mut output_strs: Option<Vec<&str>>;
 
         if let Some(module_dir_id) = self.module_id {
-            cmd_dir = run_strs.get(module_dir_id);
+            cmd_dir = run_strs.get(module_dir_id)?;
             output_strs = Some(Vec::with_capacity(self.vars.outputs.len()));
         } else {
-            cmd_dir = run_strs.get(self.realization_id);
+            cmd_dir = run_strs.get(self.realization_id)?;
             output_strs = None;
         }
 
@@ -84,8 +85,8 @@ impl TaskRunnerBuilder {
         // add inputs to cmd and task.sh /////////////
         for (id, file) in &self.vars.inputs {
             inputs.push(*file);
-            let id = wf.strings.idents.get(*id);
-            let file = run_strs.get(*file);
+            let id = wf.strings.idents.get(*id)?;
+            let file = run_strs.get(*file)?;
             cmd.env(id, file);
             script.write_assignment_line(id, file);
         }
@@ -93,8 +94,8 @@ impl TaskRunnerBuilder {
         // add outputs to cmd and task.sh ///////////
         for (id, file) in &self.vars.outputs {
             outputs.push(*file);
-            let id = wf.strings.idents.get(*id);
-            let file = run_strs.get(*file);
+            let id = wf.strings.idents.get(*id)?;
+            let file = run_strs.get(*file)?;
             if let Some(vec) = output_strs.as_mut() {
                 vec.push(file);
             }
@@ -104,33 +105,33 @@ impl TaskRunnerBuilder {
 
         // add params to cmd and task.sh ////////////
         for (id, file) in &self.vars.params {
-            let id = wf.strings.idents.get(*id);
-            let file = run_strs.get(*file);
+            let id = wf.strings.idents.get(*id)?;
+            let file = run_strs.get(*file)?;
             cmd.env(id, file);
             script.write_assignment_line(id, file);
         }
 
         // write actual code + suffix to cmd and task.sh ///
-        let code = wf.strings.literals.get(self.code);
+        let code = wf.strings.literals.get(self.code)?;
         if let Some(output_strs) = output_strs {
             let copy_strs: Vec<&str> = self
                 .copy_outputs_to
                 .iter()
                 .map(|id| run_strs.get(*id))
-                .collect();
+                .collect::<Result<_, _>>()?;
             script.write_module_task_suffix(code, cmd_dir, &output_strs, &copy_strs);
         } else {
             script.write_normal_task_suffix(code);
         }
         cmd.arg("-c").arg(code);
 
-        TaskRunner {
+        Ok(TaskRunner {
             cmd,
             print_id: self.print_id,
             realization_dir: self.realization_id,
             inputs,
             outputs,
             copy_outputs_to: self.copy_outputs_to,
-        }
+        })
     }
 }

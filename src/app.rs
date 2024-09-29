@@ -6,7 +6,7 @@ use colored::Colorize;
 use intern::{GetStr, InternStr, TypedInterner};
 use syntax::{self, ast};
 use traverse::Traversal;
-use workflow::{BranchMask, BranchSpec, Plan, Subplan, Workflow};
+use workflow::{BranchSpec, Plan, Workflow};
 
 use crate::exec::WorkflowRunner;
 use crate::fs::Fs;
@@ -17,12 +17,12 @@ use crate::ui::Ui;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Workflow has more than the maximum number of branchpoints (8)")]
-    TooManyBranchpoints,
     #[error("Nothing to run: no target specified with --plan or --task")]
     NoTargetSpecified,
     #[error("Multiple branches on command line are not yet supported")]
     MultiBranch,
+    #[error("Too many branchpoints: maximum supported is 128")]
+    TooManyBranchpoints,
 }
 
 /// This struct actually runs the command-line app.
@@ -56,9 +56,10 @@ impl App {
         let mut strbuf = String::with_capacity(0); // will be resized later.
 
         let mut wf = Workflow::default();
-        log::trace!("about to load branchpoints.txt");
-        self.fs
-            .load_branches(&mut branch_file, &mut wf, &mut strbuf, &self.ui)?;
+
+        // load branch file into wf first (if it exists),
+        // so that branch ordering is consistent between runs:
+        self.fs.load_branches(&branch_file, &mut wf, &mut strbuf, &self.ui)?;
 
         if self.settings.invalidate {
             let invalidator = Invalidator::new(&self.settings, &self.ui, &self.fs);
@@ -69,8 +70,8 @@ impl App {
             self.parse_workflow(&mut strbuf, &mut wf)?;
 
             if !self.settings.dry_run {
-                log::info!("writing branchpoints file");
-                self.fs.write_branches(&mut branch_file, &wf, &mut strbuf)?;
+                log::info!("writing branchpoints.txt file");
+                self.fs.write_branches(&branch_file, &wf, &mut strbuf)?;
             }
 
             let traversal = self.make_traversal(&mut wf)?;
@@ -91,7 +92,7 @@ impl App {
             x if x <= 32 => Traversal::create::<u32>(wf, plan)?,
             x if x <= 64 => Traversal::create::<u64>(wf, plan)?,
             x if x <= 128 => Traversal::create::<u128>(wf, plan)?,
-            _ => todo!("add error for too many branches."),
+            _ => return Err(Error::TooManyBranchpoints.into()),
         };
         self.ui.done();
 
@@ -116,9 +117,6 @@ impl App {
 
         wf.load(blocks, self.settings.config_parent_dir()?)?;
 
-        if wf.strings.branchpoints.len() > BranchMask::BITS as usize {
-            return Err(Error::TooManyBranchpoints.into());
-        }
         self.ui.done();
         self.ui.print_elapsed("Creating workflow")?;
 
@@ -135,8 +133,7 @@ impl App {
     }
 
     fn read_config_to_buf(&mut self, strbuf: &mut String) -> Result<()> {
-        self.ui
-            .verbose_progress_debug("Reading config file", &self.settings.config);
+        self.ui.verbose_progress_debug("Reading config file", &self.settings.config);
         self.fs
             .read_to_buf(&self.settings.config, strbuf)
             .with_context(|| format!("while reading config file \"{:?}\"", self.settings.config))?;
@@ -186,7 +183,7 @@ impl App {
 
         // print summary of actions and confirm w/ user:
         let mut pre_runner = PreRunner::new(&self.fs, &wf, self.settings.verbose > 0);
-        pre_runner.print_actions(&actions);
+        pre_runner.print_actions(&actions)?;
         if self.settings.dry_run || !self.ui.confirm("Proceed?")? {
             return Ok(());
         }
@@ -206,46 +203,47 @@ impl App {
 
         Ok(())
     }
+}
 
+// GETTING TARGETS ////////////
+impl App {
     fn get_target_for_run(&self, wf: &mut Workflow) -> Result<Plan> {
         if let Some(plan_name) = &self.settings.plan {
-            let id = wf.strings.idents.intern(plan_name);
-            Ok(wf.get_plan(id)?.clone())
+            self.get_plan_target(plan_name, wf)
         } else if !self.settings.tasks.is_empty() {
-            let branch = match &self.settings.branches {
-                ArgsBranch::Empty => BranchSpec::default(),
-                ArgsBranch::Baseline => BranchSpec::default(),
-                ArgsBranch::Specified(kvs) => {
-                    let mut branch = BranchSpec::default();
-                    for (k, v) in kvs {
-                        let k = wf.strings.branchpoints.intern(k);
-                        if branch.is_specified(k) {
-                            return Err(Error::MultiBranch.into());
-                        }
-                        let v = wf.strings.idents.intern(v);
-                        branch.insert(k, v);
-                    }
-                    branch
-                }
-            };
-
-            let subplan = Subplan {
-                goals: self
-                    .settings
-                    .tasks
-                    .iter()
-                    .map(|name| wf.strings.tasks.intern(name))
-                    .collect(),
-                branches: vec![branch],
-            };
-
-            let plan = Plan {
-                subplans: vec![subplan],
-            };
-
-            Ok(plan)
+            self.get_task_target(wf)
         } else {
             Err(Error::NoTargetSpecified.into())
         }
+    }
+
+    fn get_plan_target(&self, plan_name: &str, wf: &mut Workflow) -> Result<Plan> {
+        log::debug!("Using plan {plan_name} specified on command line");
+        let id = wf.strings.idents.intern(plan_name)?;
+        Ok(wf.get_plan(id)?.clone())
+    }
+
+    fn get_task_target(&self, wf: &mut Workflow) -> Result<Plan> {
+        log::debug!(
+            "No plan specified; running tasks '{}' specified on command line",
+            self.settings.tasks.join(", "),
+        );
+        let branch = self.get_target_branch(wf)?;
+        Plan::create_anonymous(&mut wf.strings, &self.settings.tasks, branch)
+    }
+
+    fn get_target_branch(&self, wf: &mut Workflow) -> Result<BranchSpec> {
+        let mut branch = BranchSpec::default();
+        if let ArgsBranch::Specified(branch_pairs) = &self.settings.branches {
+            for (k, v) in branch_pairs {
+                let k = wf.strings.branchpoints.intern(k)?;
+                if branch.is_specified(k) {
+                    return Err(Error::MultiBranch.into());
+                }
+                let v = wf.strings.idents.intern(v)?;
+                branch.insert(k, v);
+            }
+        }
+        Ok(branch)
     }
 }

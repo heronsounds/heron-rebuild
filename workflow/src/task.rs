@@ -1,3 +1,5 @@
+use anyhow::Result;
+
 use intern::InternStr;
 use syntax::ast;
 use util::IdVec;
@@ -37,12 +39,6 @@ impl<T> TaskVars<T> {
 }
 
 /// Representation of a task defined in a workflow file.
-/// Note that ducttape had the following additional fields:
-/// - packages
-/// - dot_params
-/// - introduced_branchpoints
-/// - default_branches
-/// - grafted_branchpoints
 #[derive(Debug, Default, Clone)]
 pub struct Task {
     /// Inputs, Outputs and Params to this task (var name, value)
@@ -53,6 +49,8 @@ pub struct Task {
     pub referenced_vars: Vec<IdentId>,
     /// Optional id of module that this task should run in instead of its task directory
     pub module: Option<ModuleId>,
+    /// So we can tell if this task is real, or just a default:
+    pub exists: bool,
 }
 
 impl Task {
@@ -61,7 +59,7 @@ impl Task {
         block: ast::TasklikeBlock,
         strings: &mut WorkflowStrings,
         values: &mut IdVec<AbstractValueId, Value>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         // If there are few or zero specs, we may be able to avoid an alloc:
         let default_len = block.specs.len().min(DEFAULT_VARS_LEN);
         let mut vars = TaskVars::with_default_capacity(default_len);
@@ -70,38 +68,39 @@ impl Task {
         use ast::BlockSpec::*;
         for spec in block.specs {
             match spec {
-                Input { lhs, rhs } => vars.inputs.push(add_spec(lhs, rhs, strings, values)),
-                Output { lhs, rhs } => vars.outputs.push(add_spec(lhs, rhs, strings, values)),
+                Input { lhs, rhs } => vars.inputs.push(add_spec(lhs, rhs, strings, values)?),
+                Output { lhs, rhs } => vars.outputs.push(add_spec(lhs, rhs, strings, values)?),
                 Param { lhs, rhs, dot } => {
                     if dot {
-                        return Err(Error::DotParamsUnsupported);
+                        return Err(Error::DotParamsUnsupported.into());
                     } else {
-                        vars.params.push(add_spec(lhs, rhs, strings, values));
+                        vars.params.push(add_spec(lhs, rhs, strings, values)?);
                     }
                 }
                 Module { name } => {
                     if module.is_none() {
-                        module = Some(strings.modules.intern(name));
+                        module = Some(strings.modules.intern(name)?);
                     } else {
-                        return Err(Error::MultipleModulesDefined);
+                        return Err(Error::MultipleModulesDefined.into());
                     }
                 }
             }
         }
 
-        let code = strings.literals.intern(block.code.text);
+        let code = strings.literals.intern(block.code.text)?;
         let referenced_vars = block
             .code
             .vars
             .iter()
             .map(|id| strings.idents.intern(id))
-            .collect();
+            .collect::<Result<_, _>>()?;
 
         Ok(Self {
             vars,
             code,
             referenced_vars,
             module,
+            exists: true,
         })
     }
 }
@@ -111,9 +110,9 @@ fn add_spec(
     rhs: ast::Rhs,
     strings: &mut WorkflowStrings,
     values: &mut IdVec<AbstractValueId, Value>,
-) -> (IdentId, AbstractValueId) {
-    let name = strings.idents.intern(lhs);
-    let val = strings.create_value(lhs, rhs);
+) -> Result<(IdentId, AbstractValueId)> {
+    let name = strings.idents.intern(lhs)?;
+    let val = strings.create_value(lhs, rhs)?;
     let val_id = values.push(val);
-    (name, val_id)
+    Ok((name, val_id))
 }

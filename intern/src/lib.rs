@@ -18,39 +18,25 @@ pub use typed::TypedInterner;
 mod str_to_key;
 use str_to_key::StrToKey;
 
+/// Core traits this crate is built on:
+mod traits;
+pub use traits::{GetStr, InternStr};
+
 type Hasher = std::hash::BuildHasherDefault<rustc_hash::FxHasher>;
 
 /// convenience
 pub type TypedStrs<T> = TypedInterner<T, Strs>;
-/// If you don't want to bother to check for duplicates, just use this directly:
+
+/// If you don't want to bother to check for duplicates with PackedInterner,
+/// just use this directly:
 pub type LooseInterner<Key = u32, Idx = usize> = KeyToStr<Key, Idx>;
 
-/// Trait for interners that can retrieve an interned string based on some `Key`.
-pub trait GetStr {
-    /// Key type used to fetch a string.
-    type Key;
-
-    /// Get the string associated with key `k`.
-    fn get(&self, k: Self::Key) -> &str;
-
-    /// Total number of strings interned.
-    fn len(&self) -> usize;
-
-    /// true if len is 0.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    /// Size of interned strings.
-    fn str_len(&self) -> usize;
-}
-
-/// Trait for interners that can intern a string and return a `Key`.
-/// use to retrieve it later.
-pub trait InternStr {
-    /// Key type returned from intern, can be used to fetch string later.
-    type Key;
-
-    /// Intern string `s` and return a key that can be used to retrieve it later.
-    fn intern<T: AsRef<str>>(&mut self, s: T) -> Self::Key;
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Key not found in the interner mapping: {0}")]
+    KeyNotFound(usize),
+    #[error("Out of string index space; {0} is greater than the maximum string index")]
+    StringIndexOutOfBounds(usize),
+    #[error("Out of interner key space; {0} is greater than the maximum key value")]
+    OutOfKeySpace(usize),
 }

@@ -1,4 +1,5 @@
 use super::{GetStr, KeyToStr};
+use anyhow::Result;
 
 /// An interner that has been frozen and does not allow adding new strings.
 /// We freeze it by discarding the string-to-key mapping, so we can't look up
@@ -21,7 +22,7 @@ where
 {
     type Key = Key;
 
-    fn get(&self, k: Key) -> &str {
+    fn get(&self, k: Key) -> Result<&str> {
         self.key_to_str.get(k)
     }
 

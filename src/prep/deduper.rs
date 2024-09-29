@@ -42,6 +42,8 @@ impl Deduper {
 
     /// get usable id into the deduped task vecs from the id map.
     pub fn get_actual_task_id(&self, id: RealTaskId) -> ActualTaskId {
-        *self.id_map.get(id)
+        *self.id_map.get(id).expect(
+            "Attempted to get actual task id for task that has not yet been added to mapping",
+        )
     }
 }

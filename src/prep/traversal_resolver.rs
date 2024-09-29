@@ -4,9 +4,9 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 
 use intern::{GetStr, InternStr};
-use traverse::{Node, RealTaskKey, Traversal};
+use traverse::{Errors, Node, RealInput, RealOutput, RealTaskKey, Traversal};
 use util::PathEncodingError;
-use workflow::{BranchStrs, IdentId, RealInput, RealOutput, RunStrId, TaskVars, Workflow};
+use workflow::{BranchStrs, IdentId, RunStrId, TaskVars, Workflow};
 
 use crate::fs::Fs;
 
@@ -41,6 +41,9 @@ pub struct TraversalResolver<'a> {
     wf: &'a mut Workflow,
     /// mainly used for fully-resolving interpolated string values
     strbuf: String,
+    /// store errors here and display them at the end:
+    // errors: Vec<anyhow::Error>,
+    errors: Errors,
 }
 
 impl<'a> TraversalResolver<'a> {
@@ -54,6 +57,7 @@ impl<'a> TraversalResolver<'a> {
             wf,
             fs,
             strbuf: String::with_capacity(256),
+            errors: Errors::default(), //Vec::with_capacity(0),
         }
     }
 }
@@ -78,12 +82,19 @@ impl TraversalResolver<'_> {
                     &mut traversal.branch_strs,
                 )
                 .with_context(|| {
-                    let task_name = self.wf.strings.tasks.get(task.key.abstract_task_id);
+                    let task_name = self
+                        .wf
+                        .strings
+                        .tasks
+                        .get(task.key.id)
+                        .expect("task id should be in interner");
                     format!("preparing task '{task_name}'")
                 })?;
 
             self.should_run.push(should_run);
         }
+
+        self.errors.print_recap("preparing workflow")?;
         Ok(actions)
     }
 
@@ -98,7 +109,7 @@ impl TraversalResolver<'_> {
         branch_strs: &mut BranchStrs,
     ) -> Result<bool> {
         self.var_checker.clear();
-        paths.make_paths(task, self.wf, self.fs, branch_strs, &mut self.strbuf);
+        paths.make_paths(task, self.wf, self.fs, branch_strs, &mut self.strbuf)?;
         let mut vars = TaskVars::new_with_sizes(&task.vars);
 
         // handle inputs and outputs first, since we need those even if task won't run:
@@ -106,7 +117,7 @@ impl TraversalResolver<'_> {
         let copy_outputs_to =
             self.handle_outputs(task, &mut vars.outputs, outputs_params, paths)?;
 
-        let print_id = self.make_print_id(&task.key, branch_strs);
+        let print_id = self.make_print_id(&task.key, branch_strs)?;
         let realization_id = self.make_path_id(paths.realization())?;
 
         // if task dir exists, check if it's complete; add to delete list if not:
@@ -121,10 +132,13 @@ impl TraversalResolver<'_> {
 
         // at this point we know the task will run, so handle params:
         self.handle_params(task, &mut vars.params, outputs_params)?;
+
         // and perform some checks:
-        self.var_checker.check(task, self.wf);
-        self.module_checker
-            .check(task, paths, self.fs, self.wf, actions.modules_mut())?;
+        let _ = self.var_checker.check(task, self.wf).map_err(|e| self.errors.add(e));
+        let _ = self
+            .module_checker
+            .check(task, paths, self.fs, self.wf, actions.modules_mut())
+            .map_err(|e| self.errors.add(e));
 
         let module_id = if task.module.is_some() {
             Some(self.make_path_id(paths.module())?)
@@ -146,9 +160,9 @@ impl TraversalResolver<'_> {
         Ok(true)
     }
 
-    fn make_path_id(&mut self, path: &Path) -> Result<RunStrId, PathEncodingError> {
+    fn make_path_id(&mut self, path: &Path) -> Result<RunStrId> {
         let path_str = path.to_str().ok_or(PathEncodingError)?;
-        Ok(self.wf.strings.run.intern(path_str))
+        self.wf.strings.run.intern(path_str)
     }
 }
 
@@ -164,21 +178,24 @@ impl TraversalResolver<'_> {
         let mut should_run = false;
         for (k, v) in &task.vars.inputs {
             self.var_checker.insert(*k);
-            let val = values.get(*v);
-            let (file_id, this_input_should_run) = self.handle_input(val).with_context(|| {
-                format!("preparing task input '{}'", self.wf.strings.idents.get(*k))
-            })?;
-            inputs.push((*k, file_id));
-            should_run = this_input_should_run || should_run;
+            let val = values.get(*v).expect("TODO");
+
+            match self.handle_input(val) {
+                Ok((file_id, this_input_should_run)) => {
+                    inputs.push((*k, file_id));
+                    should_run = this_input_should_run || should_run;
+                }
+                Err(e) => self.var_err("input", *k, &task.key, e)?,
+            }
         }
         Ok(should_run)
     }
 
-    fn handle_input(&mut self, v: &RealInput) -> Result<(RunStrId, bool), Error> {
+    fn handle_input(&mut self, v: &RealInput) -> Result<(RunStrId, bool)> {
         match v {
             RealInput::Literal(lit_id) => {
-                let lit_val = self.wf.strings.literals.get(*lit_id);
-                let file_id = self.wf.strings.run.intern(lit_val);
+                let lit_val = self.wf.strings.literals.get(*lit_id)?;
+                let file_id = self.wf.strings.run.intern(lit_val)?;
                 Ok((file_id, false))
             }
             RealInput::Task(task_id, output_id) => {
@@ -190,14 +207,14 @@ impl TraversalResolver<'_> {
         }
     }
 
-    fn get_task_output_string(&self, t: ActualTaskId, o: IdentId) -> Result<RunStrId, Error> {
+    fn get_task_output_string(&self, t: ActualTaskId, o: IdentId) -> Result<RunStrId> {
         for (var_id, file_id) in &self.outputs[t as usize] {
             if *var_id == o {
                 return Ok(*file_id);
             }
         }
-        let output_name = self.wf.strings.idents.get(o);
-        Err(Error::TaskOutputNotFound(output_name.to_owned()))
+        let output_name = self.wf.strings.idents.get(o)?;
+        Err(Error::TaskOutputNotFound(output_name.to_owned()).into())
     }
 }
 
@@ -215,27 +232,28 @@ impl TraversalResolver<'_> {
             let mut outputs_metadata = Vec::with_capacity(outputs.len());
             for (k, v) in &task.vars.outputs {
                 self.var_checker.insert(*k);
-                let val = values.get(*v);
-                let (task_id, module_id) =
-                    self.handle_module_output(val, paths).with_context(|| {
-                        format!("preparing task output {}", self.wf.strings.idents.get(*k))
-                    })?;
+                let val = values.get(*v).unwrap();
 
-                outputs.push((*k, module_id));
-                copy_outputs_to.push(task_id);
-                outputs_metadata.push((*k, task_id));
+                match self.handle_module_output(val, paths) {
+                    Ok((task_id, module_id)) => {
+                        outputs.push((*k, module_id));
+                        copy_outputs_to.push(task_id);
+                        outputs_metadata.push((*k, task_id));
+                    }
+                    Err(e) => self.var_err("output", *k, &task.key, e)?,
+                }
             }
             self.outputs.push(outputs_metadata);
             Ok(copy_outputs_to)
         } else {
             for (k, v) in &task.vars.outputs {
                 self.var_checker.insert(*k);
-                let val = values.get(*v);
-                let task_id = self.handle_normal_output(val, paths).with_context(|| {
-                    format!("preparing task output {}", self.wf.strings.idents.get(*k))
-                })?;
+                let val = values.get(*v).unwrap();
 
-                outputs.push((*k, task_id));
+                match self.handle_normal_output(val, paths) {
+                    Ok(task_id) => outputs.push((*k, task_id)),
+                    Err(e) => self.var_err("output", *k, &task.key, e)?,
+                }
             }
             self.outputs.push(outputs.clone());
             Ok(Vec::with_capacity(0))
@@ -274,13 +292,15 @@ impl TraversalResolver<'_> {
     ) -> Result<()> {
         for (k, v) in &task.vars.params {
             self.var_checker.insert(*k);
-            let val = values.get(*v);
-            let val_str = lit_str(val, self.wf, &self.wf.strings.literals, &mut self.strbuf)
-                .with_context(|| {
-                    format!("preparing task param '{}'", self.wf.strings.idents.get(*k))
-                })?;
-            let val_id = self.wf.strings.run.intern(val_str);
-            params.push((*k, val_id));
+            let val = values.get(*v).unwrap();
+
+            match lit_str(val, self.wf, &self.wf.strings.literals, &mut self.strbuf) {
+                Ok(val_str) => {
+                    let val_id = self.wf.strings.run.intern(val_str)?;
+                    params.push((*k, val_id));
+                }
+                Err(e) => self.var_err("param", *k, &task.key, e)?,
+            }
         }
 
         Ok(())
@@ -289,15 +309,28 @@ impl TraversalResolver<'_> {
 
 impl TraversalResolver<'_> {
     /// make a user-friendly string for the task and intern it, returning its id.
-    fn make_print_id(&mut self, key: &RealTaskKey, branch_strs: &mut BranchStrs) -> RunStrId {
+    fn make_print_id(
+        &mut self,
+        key: &RealTaskKey,
+        branch_strs: &mut BranchStrs,
+    ) -> Result<RunStrId> {
         self.strbuf.clear();
-        self.strbuf
-            .push_str(&self.wf.strings.tasks.get(key.abstract_task_id).cyan());
+        self.strbuf.push_str(&self.wf.strings.tasks.get(key.id)?.cyan());
         self.strbuf.push('[');
-        self.strbuf
-            .push_str(branch_strs.get_or_insert(&key.branch, self.wf));
+        self.strbuf.push_str(branch_strs.get_or_insert(&key.branch, self.wf)?);
         self.strbuf.push(']');
         self.wf.strings.run.intern(&self.strbuf)
+    }
+
+    /// store an error that was thrown while handling task variables:
+    fn var_err(&mut self, ty: &str, k: IdentId, key: &RealTaskKey, e: anyhow::Error) -> Result<()> {
+        let msg = format!(
+            "Error preparing {ty} '{}' in task '{}'",
+            self.wf.strings.idents.get(k)?.yellow(),
+            self.wf.strings.tasks.get(key.id)?.cyan(),
+        );
+        self.errors.add_context(e, msg);
+        Ok(())
     }
 }
 
@@ -311,7 +344,7 @@ fn lit_str<'a>(
     strbuf: &'a mut String,
 ) -> Result<&'a str> {
     match v {
-        RealOutput::Literal(lit_id) => Ok(literals.get(*lit_id)),
+        RealOutput::Literal(lit_id) => literals.get(*lit_id),
         RealOutput::Interp(lit_id, vars) => {
             strbuf.clear();
             wf.strings.make_interpolated(*lit_id, vars, strbuf)?;
@@ -326,5 +359,5 @@ fn path_id(
     run_strs: &mut intern::TypedInterner<RunStrId, intern::PackedInterner>,
 ) -> Result<RunStrId> {
     let path_str = path.to_str().ok_or(PathEncodingError)?;
-    Ok(run_strs.intern(path_str))
+    run_strs.intern(path_str)
 }

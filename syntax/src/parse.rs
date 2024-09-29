@@ -61,6 +61,19 @@ pub mod util {
         }
     }
 
+    p! {
+        branch_ident_parts() -> Vec<char>, {
+            many1(char('_').or(alpha_num()))
+        }
+    }
+
+    // unlike other idents, branch idents can start w/ a number.
+    p! {
+        branch_ident() -> &'a str, {
+            recognize(branch_ident_parts())
+        }
+    }
+
     // TODO should idents be limited to ascii?
     p! {
         ident() -> &'a str, {
@@ -188,17 +201,11 @@ pub mod util {
         fn test_lex() -> Result<()> {
             assert_eq!(
                 'x',
-                super::lex(combine::parser::char::char('x'))
-                    .easy_parse("  x  ")
-                    .unwrap()
-                    .0
+                super::lex(combine::parser::char::char('x')).easy_parse("  x  ").unwrap().0
             );
             assert_eq!(
                 'x',
-                super::lex(combine::parser::char::char('x'))
-                    .easy_parse(" \n x \n ")
-                    .unwrap()
-                    .0
+                super::lex(combine::parser::char::char('x')).easy_parse(" \n x \n ").unwrap().0
             );
             Ok(())
         }
@@ -294,10 +301,7 @@ mod literal {
             );
             assert_eq!(
                 "not greedy",
-                super::literal()
-                    .easy_parse("\"not greedy\" won't parse this")
-                    .unwrap()
-                    .0
+                super::literal().easy_parse("\"not greedy\" won't parse this").unwrap().0
             );
             assert_eq!(
                 "filenames.are.ok",
@@ -345,11 +349,11 @@ mod interp {
 mod graft {
 
     use super::prelude::*;
-    use super::util::{brackets, comma_delim, ident, lex_inline};
+    use super::util::{brackets, branch_ident, comma_delim, ident, lex_inline};
 
     p! {
         branch_element() -> (&'a str, &'a str), {
-            ident().skip(char(':')).and(lex_inline(ident()))
+            ident().skip(char(':')).and(lex_inline(branch_ident()))
         }
     }
 
@@ -390,7 +394,7 @@ mod rhs {
     use super::graft::branch_graft;
     use super::literal::{interp_literal, literal};
     use super::prelude::*;
-    use super::util::{ident, lex_inline, parens, whitespace};
+    use super::util::{branch_ident, ident, lex_inline, parens, whitespace};
     use crate::ast::Rhs;
 
     p! {
@@ -438,7 +442,7 @@ mod rhs {
 
     p! {
         branchpoint_assignment() -> (&'a str, Rhs<'a>), {
-            ident().and(
+            branch_ident().and(
                 choice!(
                     attempt(lex_inline(char('=')).with(rhs())),
                     produce(|| Rhs::Unbound)
@@ -567,10 +571,7 @@ mod rhs {
             );
             assert_eq!(
                 Rhs::grafted_task_output("output", "task", vec![("Bp1", "val1")]),
-                super::rhs()
-                    .easy_parse("$output@task[Bp1: val1]")
-                    .unwrap()
-                    .0
+                super::rhs().easy_parse("$output@task[Bp1: val1]").unwrap().0
             );
             Ok(())
         }
@@ -578,20 +579,14 @@ mod rhs {
         fn test_branchpoint() -> Result<()> {
             assert_eq!(
                 ("val1", Rhs::literal("yes")),
-                super::branchpoint_assignment()
-                    .easy_parse("val1=yes")
-                    .unwrap()
-                    .0,
+                super::branchpoint_assignment().easy_parse("val1=yes").unwrap().0,
             );
             assert_eq!(
                 Rhs::branchpoint(
                     "Bp1",
                     vec![("val1", Rhs::literal("yes")), ("val2", Rhs::literal("no"))],
                 ),
-                super::rhs()
-                    .easy_parse("(Bp1: val1=yes val2=no)")
-                    .unwrap()
-                    .0
+                super::rhs().easy_parse("(Bp1: val1=yes val2=no)").unwrap().0
             );
             // make sure we can deal with multiline branchpoint assignments:
             assert_eq!(
@@ -599,10 +594,7 @@ mod rhs {
                     "Bp1",
                     vec![("val1", Rhs::literal("yes")), ("val2", Rhs::literal("no"))],
                 ),
-                super::rhs()
-                    .easy_parse("(\nBp1:\n  val1=yes\n  val2=no\n)")
-                    .unwrap()
-                    .0
+                super::rhs().easy_parse("(\nBp1:\n  val1=yes\n  val2=no\n)").unwrap().0
             );
             assert_eq!(
                 Rhs::branchpoint("Bp1", vec![("a", Rhs::Unbound), ("b", Rhs::Unbound)],),
@@ -676,10 +668,7 @@ mod assignment {
         fn test_dot_assignment() -> Result<()> {
             assert_eq!(
                 ("param", Rhs::literal("value")),
-                super::dot_assignment()
-                    .easy_parse(".param=value")
-                    .unwrap()
-                    .0
+                super::dot_assignment().easy_parse(".param=value").unwrap().0
             );
             Ok(())
         }
@@ -693,10 +682,7 @@ mod assignment {
                         vec![("a1", Rhs::literal("a")), ("b2", Rhs::literal("b"))]
                     )
                 ),
-                super::assignment()
-                    .easy_parse("var=(Branchpt: a1=a b2=b)")
-                    .unwrap()
-                    .0
+                super::assignment().easy_parse("var=(Branchpt: a1=a b2=b)").unwrap().0
             );
             Ok(())
         }
@@ -707,10 +693,7 @@ mod assignment {
                     "var",
                     Rhs::branchpoint("Branchpt", vec![("a", Rhs::Unbound), ("b", Rhs::Unbound)])
                 ),
-                super::assignment()
-                    .easy_parse("var=(Branchpt: a b)")
-                    .unwrap()
-                    .0
+                super::assignment().easy_parse("var=(Branchpt: a b)").unwrap().0
             );
             Ok(())
         }
@@ -908,10 +891,7 @@ mod tasklike {
         fn test_task() -> Result<()> {
             assert_eq!(
                 "task_name",
-                super::block_name("task")
-                    .easy_parse("task task_name")
-                    .unwrap()
-                    .0
+                super::block_name("task").easy_parse("task task_name").unwrap().0
             );
             // assert_eq!(
             //     TasklikeBlock {
@@ -993,13 +973,15 @@ mod config {
 
 mod plan {
     use super::prelude::*;
-    use super::util::{braces, comma_delim, ident, lex, lex_inline, parens, whitespace};
+    use super::util::{
+        braces, branch_ident, comma_delim, ident, lex, lex_inline, parens, whitespace,
+    };
     use crate::ast::{Branches, CrossProduct, Plan};
 
     p! {
         branches() -> Branches<'a>, {
             char('*').map(|_| Branches::Glob).or(
-                many1(lex(ident()))
+                many1(lex(branch_ident()))
                 .map(Branches::Specified)
             )
         }
@@ -1119,10 +1101,7 @@ mod misc {
         fn test_import() -> Result<()> {
             assert_eq!(
                 "packages.tape",
-                super::import_statement()
-                    .easy_parse("import packages.tape\n ")
-                    .unwrap()
-                    .0
+                super::import_statement().easy_parse("import packages.tape\n ").unwrap().0
             );
             // assert_eq!(
             //     TasklikeBlock {

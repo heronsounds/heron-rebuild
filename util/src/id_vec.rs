@@ -54,14 +54,24 @@ impl<K, V: Clone> IdVec<K, V> {
 impl<K: Into<usize>, V> IdVec<K, V> {
     /// Get the value with id `k`.
     #[inline]
-    pub fn get(&self, k: K) -> &V {
+    pub fn get_unchecked(&self, k: K) -> &V {
         &self.vec[k.into()]
+    }
+
+    #[inline]
+    pub fn get(&self, k: K) -> Option<&V> {
+        self.vec.get(k.into())
     }
 
     /// Get a mutable reference to value with id `k`.
     #[inline]
-    pub fn get_mut(&mut self, k: K) -> &mut V {
+    pub fn get_mut_unchecked(&mut self, k: K) -> &mut V {
         &mut self.vec[k.into()]
+    }
+
+    #[inline]
+    pub fn get_mut(&mut self, k: K) -> Option<&mut V> {
+        self.vec.get_mut(k.into())
     }
 }
 

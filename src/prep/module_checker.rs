@@ -34,14 +34,14 @@ impl ModuleChecker {
         module_ids_to_print: &mut Vec<ModuleId>,
     ) -> Result<()> {
         if let Some(module_id) = task.module {
-            if !*self.checked.get(module_id) {
+            if !*self.checked.get(module_id).unwrap() {
                 if fs.is_dir(paths.module())? {
                     self.checked.insert(module_id, true);
                     module_ids_to_print.push(module_id);
                     return Ok(());
                 } else {
-                    let module_name = wf.strings.modules.get(module_id).to_owned();
-                    let task_name = wf.strings.tasks.get(task.key.abstract_task_id).to_owned();
+                    let module_name = wf.strings.modules.get(module_id)?.to_owned();
+                    let task_name = wf.strings.tasks.get(task.key.id)?.to_owned();
                     let module_path = paths.module().to_str().ok_or(PathEncodingError)?.to_owned();
                     return Err(Error::MissingModule(module_name, task_name, module_path).into());
                 }

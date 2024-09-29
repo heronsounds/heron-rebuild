@@ -5,7 +5,7 @@ mod spec;
 pub use spec::BranchSpec;
 
 mod string_fns;
-pub use string_fns::{make_compact_string, parse_compact_branch_str};
+pub use string_fns::parse_compact_branch_str;
 
 mod branch_strs;
 pub use branch_strs::BranchStrs;

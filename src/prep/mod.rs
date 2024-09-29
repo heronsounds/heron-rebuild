@@ -35,7 +35,7 @@ use module_checker::ModuleChecker;
 /// index into vecs used by TraversalResolver:
 type ActualTaskId = u16;
 
-use workflow::{RealInput, RealOutputOrParam};
+use traverse::{RealInput, RealOutputOrParam};
 
 type RealInputs = util::IdVec<workflow::RealValueId, RealInput>;
 type RealOutputsParams = util::IdVec<workflow::RealValueId, RealOutputOrParam>;

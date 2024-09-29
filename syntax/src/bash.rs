@@ -287,10 +287,7 @@ mod test {
     fn test_single_quoted() -> Result<()> {
         assert_eq!(
             "'hi it me'",
-            super::single_quoted_string()
-                .easy_parse("'hi it me'")
-                .unwrap()
-                .0
+            super::single_quoted_string().easy_parse("'hi it me'").unwrap().0
         );
         assert_eq!(
             "''",
@@ -302,17 +299,11 @@ mod test {
     fn test_double_quoted() -> Result<()> {
         assert_eq!(
             ("\"simple example\"", vec![]),
-            super::double_quoted_string()
-                .easy_parse("\"simple example\"")
-                .unwrap()
-                .0
+            super::double_quoted_string().easy_parse("\"simple example\"").unwrap().0
         );
         assert_eq!(
             ("\"has a $variable\"", vec!["variable"]),
-            super::double_quoted_string()
-                .easy_parse("\"has a $variable\"")
-                .unwrap()
-                .0
+            super::double_quoted_string().easy_parse("\"has a $variable\"").unwrap().0
         );
         Ok(())
     }

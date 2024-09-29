@@ -49,15 +49,14 @@ impl WorkflowRunner {
 
         for task in &mut tasks {
             self.ui.start_timer();
-            let realization_dir = self.run_strs.get(task.realization_dir);
-            let task_str = self.run_strs.get(task.print_id);
+            let realization_dir = self.run_strs.get(task.realization_dir)?;
+            let task_str = self.run_strs.get(task.print_id)?;
             eprintln!("{} {task_str}\nin {realization_dir}\n", "RUN".green());
 
             if self.ui.verbose {
                 eprintln!("\n{}", "Checking that all inputs exist...".magenta());
             }
-            self.check_files_exist(&task.inputs)
-                .context("while checking for input files")?;
+            self.check_files_exist(&task.inputs).context("while checking for input files")?;
             if self.ui.verbose {
                 eprintln!("All input files were found.\n");
             }
@@ -105,9 +104,7 @@ impl WorkflowRunner {
                 "{} {task_str}. Writing exit_code file.\n",
                 "COMPLETED".green()
             );
-            let exit_code = self
-                .fs
-                .exit_code(realization_dir.as_ref(), &mut self.pathbuf);
+            let exit_code = self.fs.exit_code(realization_dir.as_ref(), &mut self.pathbuf);
             self.fs
                 .write_file(exit_code, "0")
                 .context("while writing exit_code file for successful task.")?;
@@ -119,8 +116,8 @@ impl WorkflowRunner {
 
     fn copy_module_outputs(&self, task: &TaskRunner, fs: &Fs) -> Result<()> {
         for (id, file) in task.outputs.iter().enumerate() {
-            let file = self.run_strs.get(*file);
-            let copy_to_file = self.run_strs.get(task.copy_outputs_to[id]);
+            let file = self.run_strs.get(*file)?;
+            let copy_to_file = self.run_strs.get(task.copy_outputs_to[id])?;
 
             self.check_file_exists(file)
                 .context("while checking for output file in module")?;
@@ -131,9 +128,9 @@ impl WorkflowRunner {
         Ok(())
     }
 
-    fn check_files_exist(&self, file_ids: &[RunStrId]) -> Result<(), Error> {
+    fn check_files_exist(&self, file_ids: &[RunStrId]) -> Result<()> {
         for file in file_ids {
-            self.check_file_exists(self.run_strs.get(*file))?;
+            self.check_file_exists(self.run_strs.get(*file)?)?;
         }
         Ok(())
     }

@@ -1,3 +1,5 @@
+use anyhow::Result;
+
 use intern::GetStr;
 use traverse::Node;
 use util::{HashSet, Hasher};
@@ -29,15 +31,16 @@ impl TaskVarChecker {
     /// Check that each variable used in execution code is defined.
     /// Currently, since checking for definitions could use some improvement,
     /// just prints a warning rather than erroring out.
-    pub fn check(&self, node: &Node, wf: &Workflow) {
+    pub fn check(&self, node: &Node, wf: &Workflow) -> Result<()> {
         for k in &node.code_vars {
             if !self.vars.contains(k) {
-                let name = wf.strings.idents.get(*k);
+                let name = wf.strings.idents.get(*k)?;
                 log::debug!(
                     "missing var {:?}: {name:?} (hope it's defined in the code...)",
                     *k
                 );
             }
         }
+        Ok(())
     }
 }

@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
-use super::{GetStr, InternStr, Strs};
+use anyhow::Result;
+
+use super::{Error, GetStr, InternStr, Strs};
 
 /// Internals used by all of our interners.
 /// `Key` is the id of a substring; `Idx` is an index into the string storage
@@ -31,19 +33,22 @@ impl<Key, Idx> GetStr for KeyToStr<Key, Idx>
 where
     Key: TryInto<usize>,
     Idx: TryInto<usize> + Copy,
+    anyhow::Error: From<Key::Error> + From<Idx::Error>,
 {
     type Key = Key;
 
-    fn get(&self, k: Key) -> &str {
-        let k = into_usize(k);
-        let start = into_usize(self.key_to_str[k]);
+    fn get(&self, k: Key) -> Result<&str> {
+        let k = k.try_into()?;
+
+        let start = self.key_to_str.get(k).copied().ok_or(Error::KeyNotFound(k))?.try_into()?;
+
         let end = if k == self.key_to_str.len() - 1 {
             self.strings.len()
         } else {
-            into_usize(self.key_to_str[k + 1])
+            self.key_to_str[k + 1].try_into()?
         };
 
-        &self.strings[start..end]
+        Ok(&self.strings[start..end])
     }
 
     fn len(&self) -> usize {
@@ -60,18 +65,25 @@ impl<Key, Idx> InternStr for KeyToStr<Key, Idx>
 where
     Key: TryFrom<usize>,
     Idx: TryFrom<usize>,
+    anyhow::Error: From<Key::Error> + From<Idx::Error>,
 {
     type Key = Key;
 
-    fn intern<T: AsRef<str>>(&mut self, s: T) -> Key {
-        let s = s.as_ref();
-        let start = self.strings.len();
-        let k = from_usize(self.key_to_str.len());
+    // Note that this impl *does not* check for duplicates;
+    // if given a duplicate string it will just re-intern it and return a new key.
+    // Checking for duplicates should be done by a wrapper *before* calling this fn.
+    // Specifically, see `StrToKey`.
+    fn intern<T: AsRef<str>>(&mut self, s: T) -> Result<Key> {
+        let str_len = self.strings.len();
+        let start = Idx::try_from(str_len).map_err(|_| Error::StringIndexOutOfBounds(str_len))?;
 
-        self.key_to_str.push(from_usize(start));
-        self.strings.push_str(s);
+        let keys_len = self.key_to_str.len();
+        let k = Key::try_from(keys_len).map_err(|_| Error::OutOfKeySpace(keys_len))?;
 
-        k
+        self.key_to_str.push(start);
+        self.strings.push_str(s.as_ref());
+
+        Ok(k)
     }
 }
 
@@ -79,16 +91,4 @@ impl<Key, Idx> From<KeyToStr<Key, Idx>> for Strs<Key, Idx> {
     fn from(val: KeyToStr<Key, Idx>) -> Self {
         Self::new(val)
     }
-}
-
-fn into_usize<T: TryInto<usize>>(x: T) -> usize {
-    x.try_into()
-        .ok()
-        .expect("Invalid conversion from interner key or index to usize")
-}
-
-fn from_usize<T: TryFrom<usize>>(x: usize) -> T {
-    T::try_from(x)
-        .ok()
-        .expect("Invalid conversion from usize to interner key or index")
 }

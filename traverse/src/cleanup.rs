@@ -3,10 +3,12 @@ use colored::Colorize;
 
 use intern::GetStr;
 use util::Bitmask;
-use workflow::{BranchSpec, RealInput, Workflow};
+use workflow::{BranchSpec, Workflow};
 
-use super::{Node, Traversal, TraversalBuilder};
+use super::{value::RealInput, Node, Traversal, TraversalBuilder};
 
+/// Reverse the traversal, and convert to `Traversal` type,
+/// stripping unnecessary info from the TraversalBuilder.
 pub fn reverse_and_strip<B>(mut traversal: TraversalBuilder<B>) -> Traversal {
     let nodes: Vec<_> = traversal.nodes.into_iter().map(Node::from).rev().collect();
 
@@ -35,13 +37,13 @@ pub fn clean_branches_reversed<B: Bitmask>(
         traversal.roots.len(),
     );
     for root_idx in &traversal.roots {
-        let mut idx = *root_idx as usize;
-        let mut node = &mut traversal.nodes[idx];
+        let mut idx = *root_idx;
+        let mut node = &mut traversal.nodes[idx as usize];
         let mut traversal_mask = B::default();
         loop {
             log::debug!(
                 "Cleaning branches for {}[{}]",
-                wf.strings.tasks.get(node.key.abstract_task_id).cyan(),
+                wf.strings.tasks.get(node.key.id)?.cyan(),
                 traversal.branch_strs.get(&node.key.branch)?,
             );
 
@@ -53,11 +55,11 @@ pub fn clean_branches_reversed<B: Bitmask>(
             traversal_mask &= !node.masks.rm;
             traversal_mask |= node.masks.add;
 
-            rm_filtered_branchpoints(&mut node.key.branch, &traversal_mask, wf);
+            rm_filtered_branchpoints(&mut node.key.branch, &traversal_mask, wf)?;
 
             log::debug!(
                 "After cleaning: {}",
-                traversal.branch_strs.get_or_insert(&node.key.branch, wf),
+                traversal.branch_strs.get_or_insert(&node.key.branch, wf)?,
             );
 
             // if node is terminal/is a goal node, this traversal is done:
@@ -65,7 +67,7 @@ pub fn clean_branches_reversed<B: Bitmask>(
                 break;
             } else {
                 idx = node.next_idx;
-                node = &mut traversal.nodes[idx];
+                node = &mut traversal.nodes[idx as usize];
             }
         }
     }
@@ -73,12 +75,16 @@ pub fn clean_branches_reversed<B: Bitmask>(
 }
 
 /// Replace branches that have been filtered out with baseline/NULL_IDENT.
-fn rm_filtered_branchpoints<B: Bitmask>(branch: &mut BranchSpec, mask: &B, wf: &Workflow) {
+fn rm_filtered_branchpoints<B: Bitmask>(
+    branch: &mut BranchSpec,
+    mask: &B,
+    wf: &Workflow,
+) -> Result<()> {
     for i in 0..wf.strings.branchpoints.len() {
         let branchpoint_id = i.into();
         log::trace!(
             "checking branchpoint {}",
-            wf.strings.branchpoints.get(branchpoint_id)
+            wf.strings.branchpoints.get(branchpoint_id)?
         );
         if !mask.get(i) {
             log::trace!("not in mask; removing.");
@@ -90,4 +96,5 @@ fn rm_filtered_branchpoints<B: Bitmask>(branch: &mut BranchSpec, mask: &B, wf: &
             log::trace!("branch is all good.");
         }
     }
+    Ok(())
 }

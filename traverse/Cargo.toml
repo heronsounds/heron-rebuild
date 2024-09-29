@@ -9,10 +9,11 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-util = { workspace = true }
-workflow = { workspace = true }
-intern = { workspace = true }
+util.workspace = true
+workflow.workspace = true
+intern.workspace = true
 
-anyhow = { workspace = true }
-log = { workspace = true }
-colored = { workspace = true }
+anyhow.workspace = true
+thiserror.workspace = true
+log.workspace = true
+colored.workspace = true
