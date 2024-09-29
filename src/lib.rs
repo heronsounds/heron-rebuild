@@ -35,7 +35,7 @@ pub fn run() -> Result<(), anyhow::Error> {
         _ => log::LevelFilter::Trace,
     };
     // TODO why did I add this here?
-    std::env::set_var("RUST_BACKTRACE", "1");
+    // std::env::set_var("RUST_BACKTRACE", "1");
     simple_logging::log_to_stderr(log_level);
 
     // RUN THE THING /////////////////

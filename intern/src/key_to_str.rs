@@ -3,6 +3,8 @@ use std::marker::PhantomData;
 use super::{GetStr, InternStr, Strs};
 
 /// Internals used by all of our interners.
+/// `Key` is the id of a substring; `Idx` is an index into the string storage
+/// where that substring is located.
 #[derive(Debug)]
 pub struct KeyToStr<Key = u32, Idx = usize> {
     key_to_str: Vec<Idx>,
@@ -25,11 +27,13 @@ impl<Key, Idx> KeyToStr<Key, Idx> {
 }
 
 // GetStr ////////////////////
-impl<Key, Idx> GetStr<Key> for KeyToStr<Key, Idx>
+impl<Key, Idx> GetStr for KeyToStr<Key, Idx>
 where
     Key: TryInto<usize>,
     Idx: TryInto<usize> + Copy,
 {
+    type Key = Key;
+
     fn get(&self, k: Key) -> &str {
         let k = into_usize(k);
         let start = into_usize(self.key_to_str[k]);
@@ -52,11 +56,13 @@ where
 }
 
 // InternStr ///////////////////
-impl<Key, Idx> InternStr<Key> for KeyToStr<Key, Idx>
+impl<Key, Idx> InternStr for KeyToStr<Key, Idx>
 where
     Key: TryFrom<usize>,
     Idx: TryFrom<usize>,
 {
+    type Key = Key;
+
     fn intern<T: AsRef<str>>(&mut self, s: T) -> Key {
         let s = s.as_ref();
         let start = self.strings.len();

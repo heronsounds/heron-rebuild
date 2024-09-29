@@ -15,10 +15,12 @@ impl<Key, Idx> Strs<Key, Idx> {
 }
 
 // GetStr ///////////////////
-impl<Key, Idx> GetStr<Key> for Strs<Key, Idx>
+impl<Key, Idx> GetStr for Strs<Key, Idx>
 where
-    KeyToStr<Key, Idx>: GetStr<Key>,
+    KeyToStr<Key, Idx>: GetStr<Key = Key>,
 {
+    type Key = Key;
+
     fn get(&self, k: Key) -> &str {
         self.key_to_str.get(k)
     }

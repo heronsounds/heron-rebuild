@@ -29,10 +29,12 @@ impl<Key, Idx> PackedInterner<Key, Idx, crate::Hasher> {
 }
 
 // GetStr /////////////////////
-impl<Key, Idx, H: BuildHasher> GetStr<Key> for PackedInterner<Key, Idx, H>
+impl<Key, Idx, H: BuildHasher> GetStr for PackedInterner<Key, Idx, H>
 where
-    KeyToStr<Key, Idx>: GetStr<Key>,
+    KeyToStr<Key, Idx>: GetStr<Key = Key>,
 {
+    type Key = Key;
+
     fn get(&self, k: Key) -> &str {
         self.key_to_str.get(k)
     }
@@ -47,11 +49,13 @@ where
 }
 
 // InternStr ///////////////////
-impl<Key, Idx, H: BuildHasher> InternStr<Key> for PackedInterner<Key, Idx, H>
+impl<Key, Idx, H: BuildHasher> InternStr for PackedInterner<Key, Idx, H>
 where
     Key: Copy,
-    KeyToStr<Key, Idx>: GetStr<Key> + InternStr<Key>,
+    KeyToStr<Key, Idx>: GetStr<Key = Key> + InternStr<Key = Key>,
 {
+    type Key = Key;
+
     fn intern<T: AsRef<str>>(&mut self, s: T) -> Key {
         let s = s.as_ref();
         self.str_to_key.intern(s, &mut self.key_to_str)

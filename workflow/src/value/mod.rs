@@ -24,4 +24,6 @@ pub enum Error {
     UnsupportedInterp,
     #[error("Expected literal value, got {0}")]
     ExpectedLiteral(String),
+    #[error("Reference to nonexistent config value: {0}")]
+    NonexistentConfigValue(String),
 }

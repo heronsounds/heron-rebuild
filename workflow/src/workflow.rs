@@ -103,10 +103,9 @@ impl Workflow {
         self.values.get(value)
     }
 
-    /// Get the value id of a config value defined with the given identifier.
     #[inline]
-    pub fn get_config_value(&self, ident: IdentId) -> AbstractValueId {
-        self.config[&ident]
+    pub fn get_config_value(&self, ident: IdentId) -> Option<AbstractValueId> {
+        self.config.get(&ident).copied()
     }
 
     /// Total number of values defined (including task variables and config values).

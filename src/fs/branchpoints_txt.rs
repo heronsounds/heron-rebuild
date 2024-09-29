@@ -67,6 +67,7 @@ fn write_branchpoints_file(
     wf: &Workflow,
 ) -> Result<()> {
     if fs.exists(branchpoints_file) {
+        // TODO save a backup in case the app crashes here...
         fs.delete_file(branchpoints_file)?;
     }
     strbuf.clear();

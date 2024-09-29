@@ -32,8 +32,19 @@ pub type BranchMask = u8;
 pub const BRANCH_KV_DELIM: char = '.';
 pub const BRANCH_DELIM: char = '+';
 
+// types and sizes:
+// type IdSize = u8;
+
+// type BRANCHPOINT_ADDR_SIZE = u8;
+// type TASK_ADDR_SIZE = u16;
+// type IDENT_ADDR_SIZE = u16;
+// type MODULE_ADDR_SIZE = u8;
+// type LITERAL_ADDR_SIZE = u16;
+// type RUN_ADDR_SIZE = u16;
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    // TODO this needs more info about context:
     #[error("Unsupported feature: {0}")]
     Unsupported(String),
     #[error("Plan named \"{0}\" not found in config file")]
@@ -48,4 +59,6 @@ pub enum Error {
     BranchNotFound(String, String),
     #[error("Unable to interpolate \"{0}\" into \"{1}\"")]
     Interp(String, String),
+    #[error("Reference to nonexistent config value: {0}")]
+    NonexistentConfigValue(String),
 }

@@ -19,6 +19,8 @@ pub struct Traversal {
 
 impl Traversal {
     pub fn create<B: Bitmask>(wf: &Workflow, plan: Plan) -> Result<Self> {
+        debug_assert!(wf.strings.branchpoints.len() <= B::BITS);
+
         let mut traverser = bfs::BfsTraverser::<B>::new(wf);
 
         for plan in &plan.subplans {

@@ -11,20 +11,20 @@ use crate::{
 #[derive(Debug)]
 pub struct WorkflowStrings {
     /// Names of branchpoints
-    pub branchpoints: TypedInterner<BranchpointId, PackedInterner<u8, u8>, u8>,
+    pub branchpoints: TypedInterner<BranchpointId, PackedInterner<u8, u8>>,
     /// Names of tasks
-    pub tasks: TypedInterner<AbstractTaskId, PackedInterner<u8, u8>, u8>,
+    pub tasks: TypedInterner<AbstractTaskId, PackedInterner<u8, u16>>,
     /// Names of other idents (variables, branches, etc.)
-    pub idents: TypedInterner<IdentId, PackedInterner<u8, u16>, u8>,
+    pub idents: TypedInterner<IdentId, PackedInterner<u16, u16>>,
     /// Names of modules
-    pub modules: TypedInterner<ModuleId, PackedInterner<u8, u8>, u8>,
+    pub modules: TypedInterner<ModuleId, PackedInterner<u8, u8>>,
     /// Literal strings (code blocks, variable values)
-    pub literals: TypedInterner<LiteralId, LooseInterner<u8, u16>, u8>,
+    pub literals: TypedInterner<LiteralId, LooseInterner<u8, u16>>,
     /// Keep track of which branch is baseline for each branchpoint
     pub baselines: BaselineBranches,
     /// Strings used while running workflow: full file paths, debug strings etc.
     // this was observed to be 18/994, later 54/3436.
-    pub run: TypedInterner<RunStrId, PackedInterner<u32, usize>, u32>,
+    pub run: TypedInterner<RunStrId, PackedInterner<u32, usize>>,
 }
 
 impl Default for WorkflowStrings {
@@ -37,11 +37,11 @@ impl Default for WorkflowStrings {
             branchpoints: TypedInterner::new(PackedInterner::with_capacity_and_str_len(8, 32)),
             tasks: TypedInterner::new(PackedInterner::with_capacity_and_str_len(16, 256)),
             idents: TypedInterner::new(idents),
-            literals: TypedInterner::new(LooseInterner::with_capacity_and_avg_len(64, 128)),
-            modules: TypedInterner::new(PackedInterner::with_capacity_and_avg_len(8, 16)),
+            literals: TypedInterner::new(LooseInterner::with_capacity_and_str_len(64, 4096)),
+            modules: TypedInterner::new(PackedInterner::with_capacity_and_str_len(8, 16)),
             baselines: BaselineBranches::with_capacity(BranchMask::BITS as usize),
             // we'll re-alloc these later when we need them:
-            run: TypedInterner::new(PackedInterner::with_capacity_and_avg_len(0, 0)),
+            run: TypedInterner::new(PackedInterner::with_capacity_and_str_len(0, 0)),
         }
     }
 }
@@ -88,7 +88,7 @@ impl WorkflowStrings {
         self.log_sizes_for("Literals", &self.literals);
     }
 
-    fn log_sizes_for<K, T: GetStr<K>>(&self, name: &str, interner: &T) {
+    fn log_sizes_for<T: GetStr>(&self, name: &str, interner: &T) {
         log::debug!(
             "{} {}, str len {}",
             interner.len(),

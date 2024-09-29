@@ -22,7 +22,7 @@ impl<Key, H: Default> StrToKey<Key, H> {
 impl<Key: Copy, H: BuildHasher> StrToKey<Key, H> {
     pub fn intern<T>(&mut self, s: &str, strs: &mut T) -> Key
     where
-        T: GetStr<Key> + InternStr<Key>,
+        T: GetStr<Key = Key> + InternStr<Key = Key>,
     {
         let hash = self.hasher.hash_one(s);
         let entry = self.map.raw_entry_mut().from_hash(hash, |key| {

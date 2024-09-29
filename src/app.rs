@@ -50,15 +50,15 @@ impl App {
         }
         self.fs.ensure_out_dir_exists(self.settings.verbose > 0)?;
 
-        let mut pathbuf = PathBuf::with_capacity(512);
-        let branch_file = self.fs.branchpoints_txt(&mut pathbuf);
+        let mut branch_file = PathBuf::with_capacity(512);
+        self.fs.branchpoints_txt(&mut branch_file);
 
         let mut strbuf = String::with_capacity(0); // will be resized later.
 
         let mut wf = Workflow::default();
         log::trace!("about to load branchpoints.txt");
         self.fs
-            .load_branches(branch_file, &mut wf, &mut strbuf, &self.ui)?;
+            .load_branches(&mut branch_file, &mut wf, &mut strbuf, &self.ui)?;
 
         if self.settings.invalidate {
             let invalidator = Invalidator::new(&self.settings, &self.ui, &self.fs);
@@ -70,7 +70,7 @@ impl App {
 
             if !self.settings.dry_run {
                 log::info!("writing branchpoints file");
-                self.fs.write_branches(branch_file, &wf, &mut strbuf)?;
+                self.fs.write_branches(&mut branch_file, &wf, &mut strbuf)?;
             }
 
             let traversal = self.make_traversal(&mut wf)?;

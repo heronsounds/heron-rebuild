@@ -471,7 +471,8 @@ mod rhs {
     p! {
         branchpoint() -> (&'a str, Vec<(&'a str, Rhs<'a>)>), {
             parens(
-                branchpoint_prefix()
+                optional(whitespace())
+                    .with(branchpoint_prefix())
                     .skip(optional(whitespace()))
                     .and(branchpoint_assignments())
                     .skip(optional(whitespace()))
@@ -592,6 +593,17 @@ mod rhs {
                     .unwrap()
                     .0
             );
+            // make sure we can deal with multiline branchpoint assignments:
+            assert_eq!(
+                Rhs::branchpoint(
+                    "Bp1",
+                    vec![("val1", Rhs::literal("yes")), ("val2", Rhs::literal("no"))],
+                ),
+                super::rhs()
+                    .easy_parse("(\nBp1:\n  val1=yes\n  val2=no\n)")
+                    .unwrap()
+                    .0
+            );
             assert_eq!(
                 Rhs::branchpoint("Bp1", vec![("a", Rhs::Unbound), ("b", Rhs::Unbound)],),
                 super::rhs().easy_parse("(Bp1: a b)").unwrap().0
@@ -702,6 +714,25 @@ mod assignment {
             );
             Ok(())
         }
+        // // in DT, I think a grafted glob produces a space-separated list,
+        // // but presumably it only works for a single branchpoint.
+        // #[test]
+        // fn test_graft_shorthand_glob() -> Result<()> {
+        //     assert_eq!(
+        //         (
+        //             "dataset_json",
+        //             Rhs::ShorthandGraftedTaskOutput {
+        //                 task: "DumpHFDataset",
+        //                 branch: vec![("Dataset", "*")],
+        //             }
+        //         ),
+        //         super::assignment()
+        //             .easy_parse("dataset_json=@DumpHFDataset[Dataset:*]")
+        //             .unwrap()
+        //             .0
+        //     );
+        //     Ok(())
+        // }
     }
 }
 

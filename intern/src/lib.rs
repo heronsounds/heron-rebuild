@@ -2,10 +2,6 @@
 mod strs;
 pub use strs::Strs;
 
-/// Interner that doesn't check for duplicates.
-mod loose;
-pub use loose::LooseInterner;
-
 /// Interner that checks for duplicates and only stores each unique string once.
 mod packed;
 pub use packed::PackedInterner;
@@ -26,11 +22,16 @@ type Hasher = std::hash::BuildHasherDefault<rustc_hash::FxHasher>;
 
 /// convenience
 pub type TypedStrs<T> = TypedInterner<T, Strs>;
+/// If you don't want to bother to check for duplicates, just use this directly:
+pub type LooseInterner<Key = u32, Idx = usize> = KeyToStr<Key, Idx>;
 
-/// Trait for interners that can retrieve an interned string based on some key `K`.
-pub trait GetStr<K> {
+/// Trait for interners that can retrieve an interned string based on some `Key`.
+pub trait GetStr {
+    /// Key type used to fetch a string.
+    type Key;
+
     /// Get the string associated with key `k`.
-    fn get(&self, k: K) -> &str;
+    fn get(&self, k: Self::Key) -> &str;
 
     /// Total number of strings interned.
     fn len(&self) -> usize;
@@ -44,9 +45,12 @@ pub trait GetStr<K> {
     fn str_len(&self) -> usize;
 }
 
-/// Trait for interners that can intern a string and return a key `K`
+/// Trait for interners that can intern a string and return a `Key`.
 /// use to retrieve it later.
-pub trait InternStr<K> {
+pub trait InternStr {
+    /// Key type returned from intern, can be used to fetch string later.
+    type Key;
+
     /// Intern string `s` and return a key that can be used to retrieve it later.
-    fn intern<T: AsRef<str>>(&mut self, s: T) -> K;
+    fn intern<T: AsRef<str>>(&mut self, s: T) -> Self::Key;
 }

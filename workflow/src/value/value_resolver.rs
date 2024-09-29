@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+use intern::GetStr;
 use util::Bitmask;
 
 use crate::{BranchSpec, Error, IdentId, Workflow, NULL_IDENT};
@@ -109,7 +110,10 @@ impl ValueResolver {
     where
         B: Bitmask,
     {
-        let val_id = wf.get_config_value(ident);
+        let val_id = wf.get_config_value(ident).ok_or_else(|| {
+            let ident = wf.strings.idents.get(ident);
+            Error::NonexistentConfigValue(ident.to_owned())
+        })?;
         let val = wf.get_value(val_id);
         self.resolve(val, branch, wf)
     }

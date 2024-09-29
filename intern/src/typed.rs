@@ -3,18 +3,16 @@ use std::marker::PhantomData;
 use super::{GetStr, InternStr};
 
 #[derive(Debug)]
-pub struct TypedInterner<OuterKey, T, InnerKey = u32> {
+pub struct TypedInterner<OuterKey, T> {
     interner: T,
     _phantom_outer: PhantomData<OuterKey>,
-    _phantom_inner: PhantomData<InnerKey>,
 }
 
-impl<K, T, L> TypedInterner<K, T, L> {
+impl<K, T> TypedInterner<K, T> {
     pub fn new(interner: T) -> Self {
         Self {
             interner,
             _phantom_outer: PhantomData,
-            _phantom_inner: PhantomData,
         }
     }
 
@@ -24,11 +22,13 @@ impl<K, T, L> TypedInterner<K, T, L> {
 }
 
 // GetStr ///////////////////
-impl<OuterKey, T, InnerKey> GetStr<OuterKey> for TypedInterner<OuterKey, T, InnerKey>
+impl<OuterKey, T> GetStr for TypedInterner<OuterKey, T>
 where
-    OuterKey: Into<InnerKey>,
-    T: GetStr<InnerKey>,
+    T: GetStr,
+    OuterKey: Into<T::Key>,
 {
+    type Key = OuterKey;
+
     fn get(&self, k: OuterKey) -> &str {
         self.interner.get(k.into())
     }
@@ -43,11 +43,13 @@ where
 }
 
 // InternStr ///////////////
-impl<OuterKey, T, InnerKey> InternStr<OuterKey> for TypedInterner<OuterKey, T, InnerKey>
+impl<OuterKey, T> InternStr for TypedInterner<OuterKey, T>
 where
-    InnerKey: Into<OuterKey>,
-    T: InternStr<InnerKey>,
+    T: InternStr,
+    T::Key: Into<OuterKey>,
 {
+    type Key = OuterKey;
+
     fn intern<U: AsRef<str>>(&mut self, s: U) -> OuterKey {
         self.interner.intern(s).into()
     }
