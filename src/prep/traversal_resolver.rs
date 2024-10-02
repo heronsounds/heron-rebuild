@@ -1,12 +1,12 @@
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use colored::Colorize;
 
 use intern::{GetStr, InternStr};
-use traverse::{Errors, Node, RealInput, RealOutput, RealTaskKey, Traversal};
+use traverse::{Node, RealInput, RealOutput, RealTaskKey, Traversal, ValueContext};
 use util::PathEncodingError;
-use workflow::{BranchStrs, IdentId, RunStrId, TaskVars, Workflow};
+use workflow::{BranchStrs, Errors, IdentId, Recapper, RunStrId, TaskVars, Workflow};
 
 use crate::fs::Fs;
 
@@ -42,7 +42,6 @@ pub struct TraversalResolver<'a> {
     /// mainly used for fully-resolving interpolated string values
     strbuf: String,
     /// store errors here and display them at the end:
-    // errors: Vec<anyhow::Error>,
     errors: Errors,
 }
 
@@ -57,7 +56,7 @@ impl<'a> TraversalResolver<'a> {
             wf,
             fs,
             strbuf: String::with_capacity(256),
-            errors: Errors::default(), //Vec::with_capacity(0),
+            errors: Errors::default(),
         }
     }
 }
@@ -72,29 +71,19 @@ impl TraversalResolver<'_> {
                 continue;
             }
 
-            let should_run = self
-                .resolve_to_action(
-                    task,
-                    &traversal.inputs,
-                    &traversal.outputs_params,
-                    &mut actions,
-                    &mut paths,
-                    &mut traversal.branch_strs,
-                )
-                .with_context(|| {
-                    let task_name = self
-                        .wf
-                        .strings
-                        .tasks
-                        .get(task.key.id)
-                        .expect("task id should be in interner");
-                    format!("preparing task '{task_name}'")
-                })?;
+            let should_run = self.resolve_to_action(
+                task,
+                &traversal.inputs,
+                &traversal.outputs_params,
+                &mut actions,
+                &mut paths,
+                &mut traversal.branch_strs,
+            )?;
 
             self.should_run.push(should_run);
         }
 
-        self.errors.print_recap("preparing workflow")?;
+        self.errors.print_recap("preparing workflow", &self.wf.strings)?;
         Ok(actions)
     }
 
@@ -137,7 +126,7 @@ impl TraversalResolver<'_> {
         let _ = self.var_checker.check(task, self.wf).map_err(|e| self.errors.add(e));
         let _ = self
             .module_checker
-            .check(task, paths, self.fs, self.wf, actions.modules_mut())
+            .check(task, paths, self.fs, actions.modules_mut())
             .map_err(|e| self.errors.add(e));
 
         let module_id = if task.module.is_some() {
@@ -213,8 +202,7 @@ impl TraversalResolver<'_> {
                 return Ok(*file_id);
             }
         }
-        let output_name = self.wf.strings.idents.get(o)?;
-        Err(Error::TaskOutputNotFound(output_name.to_owned()).into())
+        Err(Recapper::new(Error::TaskOutputNotFound(o)).into())
     }
 }
 
@@ -324,12 +312,12 @@ impl TraversalResolver<'_> {
 
     /// store an error that was thrown while handling task variables:
     fn var_err(&mut self, ty: &str, k: IdentId, key: &RealTaskKey, e: anyhow::Error) -> Result<()> {
-        let msg = format!(
-            "Error preparing {ty} '{}' in task '{}'",
-            self.wf.strings.idents.get(k)?.yellow(),
-            self.wf.strings.tasks.get(key.id)?.cyan(),
-        );
-        self.errors.add_context(e, msg);
+        let e = e.context(Recapper::new(ValueContext {
+            ty: ty.to_owned(),
+            ident: k,
+            task: key.id,
+        }));
+        self.errors.add(e);
         Ok(())
     }
 }

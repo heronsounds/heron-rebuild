@@ -4,10 +4,12 @@ use std::collections::VecDeque;
 
 use intern::GetStr;
 use util::{Bitmask, IdVec};
-use workflow::{AbstractValueId, BranchStrs, IdentId, RealValueId, Workflow};
+use workflow::{
+    AbstractTaskId, AbstractValueId, BranchStrs, Errors, IdentId, RealValueId, Recapper, Workflow,
+};
 
 use super::value::{PartialRealInput, RealInput, ValueResolver};
-use super::{Error, Errors, NodeBuilder, NodeIdx, RealTaskKey, TraversalBuilder};
+use super::{Error, NodeBuilder, NodeIdx, RealTaskKey, TraversalBuilder};
 
 const QUEUE_CAPACITY: usize = 32;
 const ROOTS_CAPACITY: usize = 8;
@@ -115,23 +117,6 @@ impl<'a, B: Bitmask> BfsTraverser<'a, B> {
         Ok(())
     }
 
-    fn handle_err(
-        &mut self,
-        key: &RealTaskKey,
-        k: IdentId,
-        ty: &str,
-        e: anyhow::Error,
-    ) -> Result<()> {
-        let msg = format!(
-            "Invalid {ty} '{}' in task '{}[{}]'",
-            self.wf.strings.idents.get(k)?.yellow(),
-            self.wf.strings.tasks.get(key.id)?.cyan(),
-            self.traversal.branch_strs.get_or_insert(&key.branch, self.wf)?,
-        );
-        self.traversal.errors.add_context(e, msg);
-        Ok(())
-    }
-
     fn enqueue(&mut self, key: RealTaskKey, next_idx: NodeIdx) -> Result<()> {
         log::debug!(
             "Enqueueing {}[{}]",
@@ -152,21 +137,21 @@ impl<'a, B: Bitmask> BfsTraverser<'a, B> {
         let (val, masks) = self.resolver.resolve::<_, B>(val, &node.key.branch, self.wf)?;
 
         let real_val = match val {
-            PartialRealInput::Task(id, ident, branch) => {
+            PartialRealInput::Task(task, ident, branch) => {
                 node.is_root = false;
 
-                if id == node.key.id {
-                    return Err(
-                        Error::ReflexiveTask(self.wf.strings.tasks.get(id)?.to_owned()).into(),
-                    );
+                if task == node.key.id {
+                    return Err(Recapper::new(Error::ReflexiveTask(task)).into());
                 }
 
-                let key = RealTaskKey { id, branch };
+                let key = RealTaskKey { id: task, branch };
                 self.enqueue(key, this_node_id)?;
 
                 let real_task_id = downcast(this_node_id as usize + self.queue.len())?.into();
 
-                // TODO check if task actually has output with this ident here?
+                // NB we don't check if the task actually has an output with that ident here,
+                // b/c we haven't necessarily processed that task yet.
+                // We will check during workflow prep.
 
                 RealInput::Task(real_task_id, ident)
             }
@@ -185,14 +170,44 @@ impl<'a, B: Bitmask> BfsTraverser<'a, B> {
     ) -> Result<RealValueId> {
         let val = self.wf.get_value(val)?;
         let (val, masks) = self.resolver.resolve::<_, B>(val, &node.key.branch, self.wf)?;
-        log::trace!("value adds branches: {:#b}", masks.add);
-        log::trace!("value rms branches: {:#b}", masks.rm);
+        log::trace!(
+            "value adds branches: {:#b}, removes branches: {:#b}",
+            masks.add,
+            masks.rm
+        );
         let val_id = self.traversal.outputs_params.push(val);
         node.masks.or_eq(&masks);
         Ok(val_id)
     }
+
+    fn handle_err(
+        &mut self,
+        key: &RealTaskKey,
+        k: IdentId,
+        ty: &str,
+        e: anyhow::Error,
+    ) -> Result<()> {
+        let e = self.add_err_context(ty, key.id, k, e);
+        self.traversal.errors.add(e);
+        Ok(())
+    }
+
+    fn add_err_context(
+        &self,
+        ty: &str,
+        task: AbstractTaskId,
+        ident: IdentId,
+        e: anyhow::Error,
+    ) -> anyhow::Error {
+        e.context(Recapper::new(crate::value::ValueContext {
+            ty: ty.to_owned(),
+            ident,
+            task,
+        }))
+    }
 }
 
+/// (try to) downcast a usize into our NodeIdx int type.
 fn downcast(val: usize) -> Result<NodeIdx, Error> {
     val.try_into().map_err(|_| Error::OutOfIndices(val))
 }

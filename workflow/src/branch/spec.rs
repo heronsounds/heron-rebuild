@@ -10,6 +10,7 @@ use super::Error;
 /// Baseline can mean either that the branch was unspecified, or that it was
 /// specifically intended to be baseline, depending on the use case.
 /// This ambiguity is something we should clean up eventually.
+// TODO manually impl Debug so it prints like "0.3+1.4" etc.?
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
 pub struct BranchSpec {
     branches: IdVec<BranchpointId, IdentId>,
@@ -58,6 +59,7 @@ impl BranchSpec {
     }
 
     /// Iterate through branchpoints
+    // TODO impl Iter!
     pub fn iter(&self) -> std::slice::Iter<'_, IdentId> {
         self.branches.iter()
     }

@@ -1,9 +1,8 @@
 use anyhow::Result;
 
-use intern::GetStr;
 use traverse::Node;
 use util::{IdVec, PathEncodingError};
-use workflow::{ModuleId, Workflow};
+use workflow::{ModuleId, Recapper};
 
 use crate::fs::Fs;
 
@@ -30,7 +29,6 @@ impl ModuleChecker {
         task: &Node,
         paths: &TaskDirPaths,
         fs: &Fs,
-        wf: &Workflow,
         module_ids_to_print: &mut Vec<ModuleId>,
     ) -> Result<()> {
         if let Some(module_id) = task.module {
@@ -40,10 +38,13 @@ impl ModuleChecker {
                     module_ids_to_print.push(module_id);
                     return Ok(());
                 } else {
-                    let module_name = wf.strings.modules.get(module_id)?.to_owned();
-                    let task_name = wf.strings.tasks.get(task.key.id)?.to_owned();
                     let module_path = paths.module().to_str().ok_or(PathEncodingError)?.to_owned();
-                    return Err(Error::MissingModule(module_name, task_name, module_path).into());
+                    return Err(Recapper::new(Error::MissingModule(
+                        module_id,
+                        task.key.id,
+                        module_path,
+                    ))
+                    .into());
                 }
             }
         }

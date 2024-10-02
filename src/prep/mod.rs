@@ -42,8 +42,27 @@ type RealOutputsParams = util::IdVec<workflow::RealValueId, RealOutputOrParam>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Output value \"{0}\" not found")]
-    TaskOutputNotFound(String),
-    #[error("Module dir does not exist: {0} (used by task \"{1}\"; path: {2})")]
-    MissingModule(String, String, String),
+    #[error("Output value \"{0:?}\" not found")]
+    TaskOutputNotFound(workflow::IdentId),
+    #[error("Module dir does not exist: {0:?} (used by task \"{1:?}\"; path: {2})")]
+    MissingModule(workflow::ModuleId, workflow::AbstractTaskId, String),
+}
+
+impl workflow::Recap for Error {
+    fn recap(&self, wf: &workflow::WorkflowStrings) -> anyhow::Result<Option<String>> {
+        use intern::GetStr;
+        match self {
+            Self::MissingModule(m, t, path) => {
+                let module = wf.modules.get(*m)?;
+                let task = wf.tasks.get(*t)?;
+                Ok(Some(format!(
+                    "Module dir does not exist: {module} (used by task {task}; path: {path}"
+                )))
+            }
+            Self::TaskOutputNotFound(o) => Ok(Some(format!(
+                "Task output value not found: {}",
+                wf.idents.get(*o)?
+            ))),
+        }
+    }
 }

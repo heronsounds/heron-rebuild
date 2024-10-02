@@ -1,10 +1,13 @@
 use anyhow::Result;
 
-use intern::GetStr;
 use util::Bitmask;
-use workflow::{BaseValue, BranchSpec, DirectValue, IdentId, Value, Workflow, NULL_IDENT};
+use workflow::{
+    BaseValue, BranchSpec, DirectValue, IdentId, Recapper, Value, Workflow, NULL_IDENT,
+};
 
 use super::{BranchMasks, Error, RealValueLike};
+
+// use crate::errors::Wrapper;
 
 /// Just a convenience to keep Bfs impls from growing too large.
 #[derive(Debug)]
@@ -111,14 +114,9 @@ impl ValueResolver {
         T: RealValueLike,
         B: Bitmask,
     {
-        let val_id = wf.get_config_value(ident).ok_or_else(|| {
-            let ident = wf
-                .strings
-                .idents
-                .get(ident)
-                .expect("Ident id should be interned at this point.");
-            Error::UndefinedConfigValue(ident.to_owned())
-        })?;
+        let val_id = wf
+            .get_config_value(ident)
+            .ok_or_else(|| Recapper::new(Error::UndefinedConfigValue(ident)))?;
         let val = wf.get_value(val_id)?;
         self.resolve(val, branch, wf)
     }

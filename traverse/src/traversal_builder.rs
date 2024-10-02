@@ -1,8 +1,8 @@
 use util::IdVec;
-use workflow::{BranchStrs, RealValueId};
+use workflow::{BranchStrs, Errors, RealValueId};
 
 use crate::value::{RealInput, RealOutputOrParam};
-use crate::{Errors, NodeBuilder, NodeIdx};
+use crate::{NodeBuilder, NodeIdx};
 
 /// Builds a specific traversal through the tasks in the workflow.
 pub struct TraversalBuilder<B> {

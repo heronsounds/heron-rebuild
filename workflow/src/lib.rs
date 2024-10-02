@@ -1,5 +1,5 @@
 mod strings;
-use strings::WorkflowStrings;
+pub use strings::WorkflowStrings;
 
 mod value;
 pub use value::{BaseValue, DirectValue, Value};
@@ -19,6 +19,9 @@ pub use id::{
     RealValueId, RunStrId, NULL_IDENT,
 };
 
+mod error;
+pub use error::{Errors, Recap, Recapper};
+
 mod workflow;
 pub use workflow::{SizeHints, Workflow};
 
@@ -32,16 +35,39 @@ pub enum Error {
     // TODO this needs more info about context:
     #[error("Unsupported feature: {0}")]
     Unsupported(String),
-    #[error("Plan named \"{0}\" not found in config file")]
-    PlanNotFound(String),
+    #[error("Plan not found: {0:?}")]
+    PlanNotFound(IdentId),
     #[error("Task defines multiple modules with '@'. Only one module is allowed.")]
     MultipleModulesDefined,
     #[error("Dot parameters (\".var\") are not yet supported")]
     DotParamsUnsupported,
     #[error("Unable to interpolate \"{0}\" into \"{1}\"")]
     Interp(String, String),
-    #[error("{0} does not exist: '{1}'")]
-    ItemNotFound(String, String),
+    // #[error("{0} does not exist: '{1}'")]
+    // ItemNotFound(String, String),
     #[error("Plan is empty: '{0}'")]
     EmptyPlan(String),
+    #[error("Module not found: {0:?}")]
+    ModuleNotFound(ModuleId),
+    #[error("Task not found: {0:?}")]
+    TaskNotFound(AbstractTaskId),
+    #[error("Value not found: {0:?}")]
+    ValueNotFound(AbstractValueId),
+}
+
+impl Recap for Error {
+    fn recap(&self, wf: &WorkflowStrings) -> anyhow::Result<Option<String>> {
+        use intern::GetStr;
+        match self {
+            Self::ModuleNotFound(id) => {
+                Ok(Some(format!("Module not found: {}", wf.modules.get(*id)?)))
+            }
+            Self::TaskNotFound(id) => Ok(Some(format!("Task not found: {}", wf.tasks.get(*id)?))),
+            Self::PlanNotFound(id) => Ok(Some(format!(
+                "Plan not found in config file: {}",
+                wf.idents.get(*id)?
+            ))),
+            _ => Ok(None),
+        }
+    }
 }

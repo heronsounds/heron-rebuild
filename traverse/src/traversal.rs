@@ -52,7 +52,7 @@ impl Traversal {
 
         cleanup::clean_branches_reversed(&mut traversal, wf)?;
 
-        traversal.errors.print_recap("building traversal")?;
+        traversal.errors.print_recap("building traversal", &wf.strings)?;
         Ok(cleanup::reverse_and_strip(traversal))
     }
 }

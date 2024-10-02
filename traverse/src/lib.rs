@@ -34,10 +34,7 @@ use node::NodeBuilder;
 pub use node::{Node, RealTaskKey};
 
 mod value;
-pub use value::{RealInput, RealOutput, RealOutputOrParam, RealParam};
-
-mod errors;
-pub use errors::Errors;
+pub use value::{RealInput, RealOutput, RealOutputOrParam, RealParam, ValueContext};
 
 // so we can have max ~16k task realizations, which should be enough.
 // this is before deduping though, so realistically the cap is lower.
@@ -50,6 +47,20 @@ pub enum Error {
         (this may be due to a circular dependency)"
     )]
     OutOfIndices(usize),
-    #[error("Task depends on itself: {0}")]
-    ReflexiveTask(String),
+    #[error("Task depends on itself: {0:?}")]
+    ReflexiveTask(workflow::AbstractTaskId),
+}
+
+impl workflow::Recap for Error {
+    fn recap(&self, wf: &workflow::WorkflowStrings) -> anyhow::Result<Option<String>> {
+        use intern::GetStr;
+        use Error::*;
+        match self {
+            ReflexiveTask(id) => {
+                let name = wf.tasks.get(*id)?;
+                Ok(Some(format!("Task depends on itself: {name}")))
+            }
+            _ => Ok(None),
+        }
+    }
 }

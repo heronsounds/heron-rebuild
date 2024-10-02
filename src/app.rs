@@ -21,7 +21,7 @@ pub enum Error {
     NoTargetSpecified,
     #[error("Multiple branches on command line are not yet supported")]
     MultiBranch,
-    #[error("Too many branchpoints: maximum supported is 128")]
+    #[error("Too many branchpoints; maximum supported is 128")]
     TooManyBranchpoints,
 }
 
@@ -163,9 +163,7 @@ impl App {
 
         // resolve traversal into completed/delete/run actions:
         let mut resolver = TraversalResolver::new(traversal.nodes.len(), &self.fs, &mut wf);
-        let actions = resolver
-            .resolve_to_actions(traversal)
-            .context("while preparing tasks for workflow run")?;
+        let actions = resolver.resolve_to_actions(traversal)?;
 
         log::debug!(
             "{} Run strs, str len {}",

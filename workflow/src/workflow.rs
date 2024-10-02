@@ -84,33 +84,20 @@ impl Workflow {
     /// Get a string containing the path to the module with the given id.
     #[inline]
     pub fn get_module_path(&self, module: ModuleId) -> Result<&str> {
-        let lit_id = self.modules.get(module).ok_or_else(|| {
-            Error::ItemNotFound(
-                "Module".to_owned(),
-                self.strings.modules.get(module).unwrap().to_owned(),
-            )
-        })?;
+        let lit_id = self.modules.get(module).ok_or(Error::ModuleNotFound(module))?;
         self.strings.literals.get(*lit_id)
     }
 
     /// Get the task with the given id.
     #[inline]
-    pub fn get_task(&self, task: AbstractTaskId) -> Result<&Task> {
-        self.tasks.get(task).filter(|t| t.exists).ok_or_else(|| {
-            Error::ItemNotFound(
-                "Task".to_owned(),
-                self.strings.tasks.get(task).unwrap().to_owned(),
-            )
-            .into()
-        })
+    pub fn get_task(&self, task: AbstractTaskId) -> Result<&Task, Error> {
+        self.tasks.get(task).filter(|t| t.exists).ok_or(Error::TaskNotFound(task))
     }
 
     /// Get the value with the given id.
     #[inline]
-    pub fn get_value(&self, value: AbstractValueId) -> Result<&Value> {
-        self.values.get(value).ok_or_else(|| {
-            Error::ItemNotFound("Value".to_owned(), format!("id {:?}", value)).into()
-        })
+    pub fn get_value(&self, value: AbstractValueId) -> Result<&Value, Error> {
+        self.values.get(value).ok_or(Error::ValueNotFound(value))
     }
 
     #[inline]
@@ -125,14 +112,13 @@ impl Workflow {
     }
 
     /// Get a reference to the plan defined with the given identifier.
-    pub fn get_plan(&self, plan_name: IdentId) -> Result<&Plan> {
+    pub fn get_plan(&self, plan_name: IdentId) -> Result<&Plan, Error> {
         for (k, plan) in &self.plans {
             if *k == plan_name {
                 return Ok(plan);
             }
         }
-        let plan_name = self.strings.idents.get(plan_name)?;
-        Err(Error::PlanNotFound(plan_name.to_owned()).into())
+        Err(Error::PlanNotFound(plan_name))
     }
 
     /// Parse "compact" branch string (i.e. with "Baseline.baseline" standing in for baseline branches)
@@ -145,11 +131,11 @@ impl Workflow {
 
 // building the workflow /////////////
 impl Workflow {
-    fn add_config(&mut self, assts: Vec<(&str, ast::Rhs)>) -> Result<()> {
-        for (k, v) in assts {
-            let v = self.strings.create_value(k, v)?;
+    fn add_config(&mut self, assignments: Vec<(&str, ast::Rhs)>) -> Result<()> {
+        for (lhs, rhs) in assignments {
+            let v = self.strings.create_value(lhs, rhs)?;
             let vid = self.values.push(v);
-            let k = self.strings.idents.intern(k)?;
+            let k = self.strings.idents.intern(lhs)?;
             self.config.insert(k, vid);
         }
         Ok(())

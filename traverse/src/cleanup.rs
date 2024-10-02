@@ -32,7 +32,7 @@ pub fn clean_branches_reversed<B: Bitmask>(
     traversal: &mut TraversalBuilder<B>,
     wf: &Workflow,
 ) -> Result<()> {
-    log::info!(
+    log::debug!(
         "Cleaning branches for traversal with {} roots",
         traversal.roots.len(),
     );
