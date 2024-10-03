@@ -39,8 +39,6 @@ macro_rules! id {
     };
 }
 
-// TODO if we make sizes variable, these ids need to have type params...
-
 id!(ModuleId, u8);
 id!(BranchpointId, u8);
 id!(IdentId, u16);

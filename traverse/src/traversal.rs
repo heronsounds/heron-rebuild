@@ -1,11 +1,10 @@
 use anyhow::Result;
-use colored::Colorize;
 
 use intern::GetStr;
 use util::{Bitmask, IdVec};
-use workflow::{BranchStrs, Plan, RealValueId, Workflow};
+use workflow::{Plan, RealTaskKey, RealValueId, Workflow};
 
-use super::{bfs, cleanup, Node, RealTaskKey};
+use super::{bfs, cleanup, Node};
 use crate::value::{RealInput, RealOutputOrParam};
 
 /// Represents a specific traversal through the tasks in the workflow.
@@ -13,7 +12,6 @@ pub struct Traversal {
     pub nodes: Vec<Node>,
     pub inputs: IdVec<RealValueId, RealInput>,
     pub outputs_params: IdVec<RealValueId, RealOutputOrParam>,
-    pub branch_strs: BranchStrs,
 }
 
 impl Traversal {
@@ -43,11 +41,7 @@ impl Traversal {
             traversal.nodes.len()
         );
         for node in &traversal.nodes {
-            log::trace!(
-                "{}[{}]",
-                wf.strings.tasks.get(node.key.id)?.cyan(),
-                traversal.branch_strs.get(&node.key.branch)?,
-            );
+            log::trace!("{}", wf.strings.get_real_task_str(&node.key)?,);
         }
 
         cleanup::clean_branches_reversed(&mut traversal, wf)?;

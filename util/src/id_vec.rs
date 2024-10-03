@@ -34,12 +34,12 @@ impl<K, V> IdVec<K, V> {
     }
 
     /// Iterate through immutable references to values
-    pub fn iter(&self) -> std::slice::Iter<'_, V> {
+    pub fn iter(&self) -> impl Iterator<Item = &V> {
         self.vec.iter()
     }
 
     /// Iterate through mutable references to values
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, V> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut V> {
         self.vec.iter_mut()
     }
 }

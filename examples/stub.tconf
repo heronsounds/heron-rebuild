@@ -214,3 +214,16 @@ task package_vst_win
     cp $rust_dll $bundle/Contents/x86_64-win/charmer.dll
     cp $rust_lib $bundle/Contents/x86_64-win/charmer.dll.lib
 }
+
+task self_reference
+    < should_fail=$output@self_reference
+    > output
+{}
+
+task nonexistent_config_val
+    :: param=$xxxdoesnt_existxxx
+{}
+
+task nonexistent_task_output
+    < in=$xxxdoesnt_existxxx@cargo_build
+{}

@@ -1,17 +1,7 @@
-use workflow::{
-    AbstractTaskId, BranchSpec, IdentId, LiteralId, ModuleId, RealValueId, Task, TaskVars,
-};
+use workflow::{IdentId, LiteralId, ModuleId, RealTaskKey, RealValueId, Task, TaskVars};
 
 use crate::value::BranchMasks;
 use crate::NodeIdx;
-
-/// Unique id of a resolved (real) task: an abstract task id
-/// plus the branch that resolves it to an actual task.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct RealTaskKey {
-    pub id: AbstractTaskId,
-    pub branch: BranchSpec,
-}
 
 /// Partially-resolved task used internally by traversal fns.
 #[derive(Debug)]

@@ -1,5 +1,4 @@
 use anyhow::Result;
-use colored::Colorize;
 
 use intern::GetStr;
 use util::Bitmask;
@@ -24,7 +23,6 @@ pub fn reverse_and_strip<B>(mut traversal: TraversalBuilder<B>) -> Traversal {
         nodes,
         inputs: traversal.inputs,
         outputs_params: traversal.outputs_params,
-        branch_strs: traversal.branch_strs,
     }
 }
 
@@ -42,9 +40,8 @@ pub fn clean_branches_reversed<B: Bitmask>(
         let mut traversal_mask = B::default();
         loop {
             log::debug!(
-                "Cleaning branches for {}[{}]",
-                wf.strings.tasks.get(node.key.id)?.cyan(),
-                traversal.branch_strs.get(&node.key.branch)?,
+                "Cleaning branches for {}",
+                wf.strings.get_real_task_str(&node.key)?,
             );
 
             log::trace!("traversal mask: {:#b}", traversal_mask);
@@ -59,7 +56,7 @@ pub fn clean_branches_reversed<B: Bitmask>(
 
             log::debug!(
                 "After cleaning: {}",
-                traversal.branch_strs.get_or_insert(&node.key.branch, wf)?,
+                wf.strings.get_full_branch_str(&node.key.branch)?,
             );
 
             // if node is terminal/is a goal node, this traversal is done:

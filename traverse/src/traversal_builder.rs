@@ -1,5 +1,5 @@
 use util::IdVec;
-use workflow::{BranchStrs, Errors, RealValueId};
+use workflow::{Errors, RealValueId};
 
 use crate::value::{RealInput, RealOutputOrParam};
 use crate::{NodeBuilder, NodeIdx};
@@ -12,8 +12,6 @@ pub struct TraversalBuilder<B> {
     pub inputs: IdVec<RealValueId, RealInput>,
     /// arena of output and param values (they have the same type constraints)
     pub outputs_params: IdVec<RealValueId, RealOutputOrParam>,
-    /// store string representations of branches as we go:
-    pub branch_strs: BranchStrs,
     /// indexes of root nodes:
     pub roots: Vec<NodeIdx>,
     /// for storing errors encountered during traversal:

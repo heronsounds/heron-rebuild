@@ -1,15 +1,12 @@
 use anyhow::Result;
-use colored::Colorize;
 use std::collections::VecDeque;
 
 use intern::GetStr;
 use util::{Bitmask, IdVec};
-use workflow::{
-    AbstractTaskId, AbstractValueId, BranchStrs, Errors, IdentId, RealValueId, Recapper, Workflow,
-};
+use workflow::{AbstractValueId, Errors, IdentId, RealTaskKey, RealValueId, Recapper, Workflow};
 
 use super::value::{PartialRealInput, RealInput, ValueResolver};
-use super::{Error, NodeBuilder, NodeIdx, RealTaskKey, TraversalBuilder};
+use super::{Error, NodeBuilder, NodeIdx, TraversalBuilder};
 
 const QUEUE_CAPACITY: usize = 32;
 const ROOTS_CAPACITY: usize = 8;
@@ -43,9 +40,8 @@ impl<'a, B: Bitmask> BfsTraverser<'a, B> {
                 nodes: Vec::with_capacity(len_x2),
                 inputs: IdVec::with_capacity(len_x2),
                 outputs_params: IdVec::with_capacity(len_x8),
-                branch_strs: BranchStrs::with_capacity_and_avg_len(32, 32),
                 roots: Vec::with_capacity(ROOTS_CAPACITY),
-                errors: Errors::default(), //Vec::with_capacity(0),
+                errors: Errors::default(),
             },
             resolver: ValueResolver,
         }
@@ -69,9 +65,8 @@ impl<'a, B: Bitmask> BfsTraverser<'a, B> {
     fn handle(&mut self, node: QueueNode) -> Result<()> {
         let task_id = node.key.id;
         log::debug!(
-            "Handling enqueued node {}[{}]",
-            self.wf.strings.tasks.get(task_id)?.cyan(),
-            self.traversal.branch_strs.get(&node.key.branch)?,
+            "Handling enqueued node {}",
+            self.wf.strings.get_real_task_str(&node.key)?,
         );
 
         // fetch task info and create new node
@@ -118,11 +113,7 @@ impl<'a, B: Bitmask> BfsTraverser<'a, B> {
     }
 
     fn enqueue(&mut self, key: RealTaskKey, next_idx: NodeIdx) -> Result<()> {
-        log::debug!(
-            "Enqueueing {}[{}]",
-            self.wf.strings.tasks.get(key.id)?.cyan(),
-            self.traversal.branch_strs.get_or_insert(&key.branch, self.wf)?,
-        );
+        log::debug!("Enqueueing {}", self.wf.strings.get_real_task_str(&key)?);
         self.queue.push_back(QueueNode { key, next_idx });
         Ok(())
     }
@@ -187,7 +178,7 @@ impl<'a, B: Bitmask> BfsTraverser<'a, B> {
         ty: &str,
         e: anyhow::Error,
     ) -> Result<()> {
-        let e = self.add_err_context(ty, key.id, k, e);
+        let e = self.add_err_context(ty, key, k, e);
         self.traversal.errors.add(e);
         Ok(())
     }
@@ -195,14 +186,14 @@ impl<'a, B: Bitmask> BfsTraverser<'a, B> {
     fn add_err_context(
         &self,
         ty: &str,
-        task: AbstractTaskId,
+        task: &RealTaskKey,
         ident: IdentId,
         e: anyhow::Error,
     ) -> anyhow::Error {
         e.context(Recapper::new(crate::value::ValueContext {
             ty: ty.to_owned(),
             ident,
-            task,
+            task: task.clone(),
         }))
     }
 }

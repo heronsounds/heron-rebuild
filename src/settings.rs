@@ -77,7 +77,6 @@ impl TryFrom<Args> for Settings {
         // figure out which actions to take.
         // for now, we invalidate if invalidate is specified, run otherwise.
         // in the future we will allow to do both or neither w/ different combinations.
-        // TODO add a "run" flag to explicitly run when -x is specified.
         let invalidate = args.invalidate;
         let run = !args.invalidate;
 

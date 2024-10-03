@@ -10,10 +10,24 @@ use super::Error;
 /// Baseline can mean either that the branch was unspecified, or that it was
 /// specifically intended to be baseline, depending on the use case.
 /// This ambiguity is something we should clean up eventually.
-// TODO manually impl Debug so it prints like "0.3+1.4" etc.?
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
+#[derive(Default, Clone, Hash, PartialEq, Eq)]
 pub struct BranchSpec {
     branches: IdVec<BranchpointId, IdentId>,
+}
+
+impl std::fmt::Debug for BranchSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let mut first = true;
+        for (id, ident) in self.branches.iter().enumerate() {
+            if first {
+                first = false;
+            } else {
+                write!(f, "+")?;
+            }
+            write!(f, "{}.{}", id, usize::from(*ident))?;
+        }
+        Ok(())
+    }
 }
 
 impl BranchSpec {
@@ -33,7 +47,9 @@ impl BranchSpec {
     /// Get the branch id if it is specified/non-baseline, otherwise None.
     pub fn get_specified(&self, k: BranchpointId) -> Option<IdentId> {
         if usize::from(k) < self.branches.len() {
-            none_if_baseline(*self.branches.get(k).expect("Requested branchpoint does not exist"))
+            none_if_baseline(
+                *self.branches.get(k).expect("Should never fail -- already checked bounds"),
+            )
         } else {
             None
         }
@@ -42,13 +58,15 @@ impl BranchSpec {
     /// true if branchpoint k is unspecified/baseline.
     pub fn is_unspecified(&self, k: BranchpointId) -> bool {
         usize::from(k) >= self.branches.len()
-            || *self.branches.get(k).expect("Requested branchpoint does not exist") == NULL_IDENT
+            || *self.branches.get(k).expect("Should never fail -- already checked bounds")
+                == NULL_IDENT
     }
 
     /// true if branchpoint k is specified/non-baseline.
     pub fn is_specified(&self, k: BranchpointId) -> bool {
         usize::from(k) < self.branches.len()
-            && *self.branches.get(k).expect("Requested branchpoint does not exist") != NULL_IDENT
+            && *self.branches.get(k).expect("Should never fail -- already checked bounds")
+                != NULL_IDENT
     }
 
     /// remove branch info for branchpoint k, leaving it unspecified/baseline.
@@ -59,8 +77,7 @@ impl BranchSpec {
     }
 
     /// Iterate through branchpoints
-    // TODO impl Iter!
-    pub fn iter(&self) -> std::slice::Iter<'_, IdentId> {
+    pub fn iter(&self) -> impl Iterator<Item = &IdentId> {
         self.branches.iter()
     }
 

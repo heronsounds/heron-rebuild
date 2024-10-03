@@ -4,21 +4,47 @@ use anyhow::Result;
 
 use intern::{GetStr, InternStr};
 
-use crate::Workflow;
 use crate::{BranchpointId, IdentId, BRANCH_DELIM, BRANCH_KV_DELIM};
+use crate::{StringMaker, Workflow, WorkflowStrings};
 
 use super::{BranchSpec, Error};
 
 const BASELINE_STR: &str = "Baseline.baseline";
 const BASELINE_STR_PLUS: &str = "Baseline.baseline+";
 
-// TODO make a zero-size struct to hold these fns, add it to Workflow.
+#[derive(Debug)]
+pub struct FullBranchStrings;
+
+impl StringMaker<BranchSpec> for FullBranchStrings {
+    fn make_string(
+        &self,
+        branch: &BranchSpec,
+        wf: &WorkflowStrings,
+        buf: &mut String,
+    ) -> Result<()> {
+        make_full_string(branch, wf, buf)
+    }
+}
+
+#[derive(Debug)]
+pub struct CompactBranchStrings;
+
+impl StringMaker<BranchSpec> for CompactBranchStrings {
+    fn make_string(
+        &self,
+        branch: &BranchSpec,
+        wf: &WorkflowStrings,
+        buf: &mut String,
+    ) -> Result<()> {
+        make_compact_string(branch, wf, buf)
+    }
+}
 
 /// Branch string with all branches specified, even if they are baseline.
 /// If there are no branches at all, uses "Baseline.baseline".
-pub fn make_full_string(branch: &BranchSpec, wf: &Workflow, buf: &mut String) -> Result<()> {
+fn make_full_string(branch: &BranchSpec, wf: &WorkflowStrings, buf: &mut String) -> Result<()> {
     let mut first = true;
-    for (k, _) in wf.strings.baselines.iter() {
+    for (k, _) in wf.baselines.iter() {
         if k >= branch.len() {
             break;
         }
@@ -43,10 +69,10 @@ pub fn make_full_string(branch: &BranchSpec, wf: &Workflow, buf: &mut String) ->
 /// Starts with "Baseline.baseline".
 /// These strings will always stay valid between runs, as long
 /// as the branch ordering doesn't change (specified in branchpoints.txt).
-pub fn make_compact_string(branch: &BranchSpec, wf: &Workflow, buf: &mut String) -> Result<()> {
+fn make_compact_string(branch: &BranchSpec, wf: &WorkflowStrings, buf: &mut String) -> Result<()> {
     let mut first = true;
     let mut needs_baseline = false;
-    for (k, baseline_v) in wf.strings.baselines.iter() {
+    for (k, baseline_v) in wf.baselines.iter() {
         if k >= branch.len() {
             break;
         }
@@ -74,10 +100,15 @@ pub fn make_compact_string(branch: &BranchSpec, wf: &Workflow, buf: &mut String)
     Ok(())
 }
 
-fn push_branch_pair(k: BranchpointId, v: IdentId, wf: &Workflow, buf: &mut String) -> Result<()> {
-    buf.push_str(wf.strings.branchpoints.get(k)?);
+fn push_branch_pair(
+    k: BranchpointId,
+    v: IdentId,
+    wf: &WorkflowStrings,
+    buf: &mut String,
+) -> Result<()> {
+    buf.push_str(wf.branchpoints.get(k)?);
     buf.push(BRANCH_KV_DELIM);
-    buf.push_str(wf.strings.idents.get(v)?);
+    buf.push_str(wf.idents.get(v)?);
     Ok(())
 }
 

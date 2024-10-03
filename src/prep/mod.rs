@@ -46,6 +46,10 @@ pub enum Error {
     TaskOutputNotFound(workflow::IdentId),
     #[error("Module dir does not exist: {0:?} (used by task \"{1:?}\"; path: {2})")]
     MissingModule(workflow::ModuleId, workflow::AbstractTaskId, String),
+    #[error("Value does not exist: named {0:?}, id {1:?}")]
+    MissingValue(workflow::IdentId, workflow::RealValueId),
+    #[error("Attempted to get actual task id for nonexistent real task id: {0:?}")]
+    MissingActualTaskId(workflow::RealTaskId),
 }
 
 impl workflow::Recap for Error {
@@ -63,6 +67,11 @@ impl workflow::Recap for Error {
                 "Task output value not found: {}",
                 wf.idents.get(*o)?
             ))),
+            Self::MissingValue(ident, val_id) => Ok(Some(format!(
+                "Value does not exist: named {}, id {val_id:?}",
+                wf.idents.get(*ident)?,
+            ))),
+            _ => Ok(None),
         }
     }
 }

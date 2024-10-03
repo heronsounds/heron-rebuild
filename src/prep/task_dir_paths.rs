@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+
 use intern::GetStr;
 use traverse::Node;
-use workflow::{BranchStrs, Workflow};
+use workflow::Workflow;
 
 use crate::fs::Fs;
 
@@ -37,11 +38,10 @@ impl TaskDirPaths {
         task: &Node,
         wf: &Workflow,
         fs: &Fs,
-        branch_strs: &mut BranchStrs,
         strbuf: &mut String,
     ) -> Result<()> {
         strbuf.clear();
-        branch_strs.make_compact_string(&task.key.branch, wf, strbuf)?;
+        wf.strings.make_compact_branch_string(&task.key.branch, strbuf)?;
         fs.realization_relative(&*strbuf, &mut self.realization_relative);
 
         let base = fs.task_base(wf.strings.tasks.get(task.key.id)?, &mut self.scratch);
@@ -49,7 +49,7 @@ impl TaskDirPaths {
         fs.realization(base, &self.realization_relative, &mut self.realization);
         fs.link_src(
             base,
-            branch_strs.get_or_insert(&task.key.branch, wf)?,
+            &wf.strings.get_full_branch_str(&task.key.branch)?,
             &mut self.link_src,
         );
 

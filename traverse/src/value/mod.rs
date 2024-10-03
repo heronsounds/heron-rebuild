@@ -38,16 +38,11 @@ impl Recap for Error {
     }
 }
 
-// #[derive(Debug)]
-// pub enum ValueType {
-//     Input, Output, Param,
-// }
-
 /// for more helpful error messages
 #[derive(Debug)]
 pub struct ValueContext {
     pub ty: String,
-    pub task: workflow::AbstractTaskId,
+    pub task: workflow::RealTaskKey,
     pub ident: workflow::IdentId,
 }
 
@@ -56,14 +51,10 @@ impl Recap for ValueContext {
         use colored::Colorize;
         use intern::GetStr;
         Ok(Some(format!(
-            "Invalid {} '{}' in task '{}'",
+            "Invalid {} '{}' in task {}",
             self.ty,
             wf.idents.get(self.ident)?.yellow(),
-            wf.tasks.get(self.task)?.cyan(),
-            // TODO we lost the branch string when moving to recapper,
-            // that needs to be in WorkflowStrings.
-            // probably wrapped in an Rc?
-            // while we're at it, just store a mapping from RealTaskKey too?
+            wf.get_real_task_str(&self.task)?,
         )))
     }
 }

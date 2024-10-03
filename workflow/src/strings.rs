@@ -1,3 +1,5 @@
+use std::cell::Ref;
+
 use anyhow::Result;
 
 use intern::{GetStr, InternStr, LooseInterner, PackedInterner, TypedInterner};
@@ -5,15 +7,16 @@ use syntax::ast;
 
 use crate::value::create_value;
 use crate::{
-    AbstractTaskId, BaselineBranches, BranchpointId, Error, IdentId, LiteralId, ModuleId, RunStrId,
-    Value,
+    AbstractTaskId, BaselineBranches, BranchSpec, BranchpointId, Error, IdentId, LiteralId,
+    ModuleId, RealTaskKey, RealTaskStrings, RunStrId, StringCache, StringMaker, Value,
 };
+
+use crate::branch::{CompactBranchStrings, FullBranchStrings};
 
 /// Stores all the interned strings associated with a Workflow.
 #[derive(Debug)]
 pub struct WorkflowStrings {
     /// Names of branchpoints
-    // TODO this could just be a vec of IdentIds and we store the names there!
     pub branchpoints: TypedInterner<BranchpointId, PackedInterner<u8, u8>>,
     /// Names of tasks
     pub tasks: TypedInterner<AbstractTaskId, PackedInterner<u8, u16>>,
@@ -26,15 +29,19 @@ pub struct WorkflowStrings {
     /// Keep track of which branch is baseline for each branchpoint
     pub baselines: BaselineBranches,
     /// Strings used while running workflow: full file paths, debug strings etc.
-    // this was observed to be 18/994, later 54/3436.
     pub run: TypedInterner<RunStrId, PackedInterner<u32, usize>>,
+    /// Cache for user-friendly branch strs e.g. 'A.p1+B.p2' etc.
+    branch_strs: StringCache<BranchSpec, FullBranchStrings>,
+    /// Create compact branch strings that use 'Baseline.baseline' for baseline branches:
+    compact_branch_strs: CompactBranchStrings,
+    /// Cache for user-friendly task strings e.g. 'task_name[A.p1+B.p2]'
+    real_task_strs: StringCache<RealTaskKey, RealTaskStrings>,
 }
 
 impl Default for WorkflowStrings {
     fn default() -> Self {
         let mut idents = PackedInterner::with_capacity_and_avg_len(64, 1024);
         // seed idents with an empty value, so we can use 0 as a special val:
-        // TODO if we just start using branch masks instead of ident ids, we won't need this.
         idents.intern("").expect("Ident interner seeding should never fail");
 
         Self {
@@ -44,8 +51,11 @@ impl Default for WorkflowStrings {
             literals: TypedInterner::new(LooseInterner::with_capacity_and_str_len(64, 4096)),
             modules: TypedInterner::new(PackedInterner::with_capacity_and_str_len(8, 16)),
             baselines: BaselineBranches::with_capacity(8),
+            compact_branch_strs: CompactBranchStrings,
             // we'll re-alloc these later when we need them:
             run: TypedInterner::new(PackedInterner::with_capacity_and_str_len(0, 0)),
+            branch_strs: StringCache::with_capacity_and_str_len(FullBranchStrings, 0, 0),
+            real_task_strs: StringCache::with_capacity_and_str_len(RealTaskStrings, 0, 0),
         }
     }
 }
@@ -53,13 +63,35 @@ impl Default for WorkflowStrings {
 impl WorkflowStrings {
     /// Allocate space for new strings created during traversal:
     pub fn alloc_for_traversal(&mut self) {
-        // placeholder
+        self.branch_strs = StringCache::with_capacity_and_str_len(FullBranchStrings, 32, 1024);
+        self.real_task_strs = StringCache::with_capacity_and_str_len(RealTaskStrings, 64, 2048);
     }
 
     /// Since we don't allocate any space for runtime strings up front,
     /// call this fn to get ready to actually run the workflow.
     pub fn alloc_for_run(&mut self) {
         self.run = TypedInterner::new(PackedInterner::with_capacity_and_str_len(64, 4096));
+    }
+
+    /// Get user-friendly branch str, w/ all branches shown.
+    #[inline]
+    pub fn get_full_branch_str(&self, branch: &BranchSpec) -> Result<Ref<str>> {
+        self.branch_strs.get_or_insert(branch, self)
+    }
+
+    /// Get user-friendly task str, e.g. 'task_name[full_branch_str]'.
+    #[inline]
+    pub fn get_real_task_str(&self, task: &RealTaskKey) -> Result<Ref<str>> {
+        self.real_task_strs.get_or_insert(task, self)
+    }
+
+    /// Get user-friendly branch str, w/ 'Baseline.baseline' for baseline branches.
+    /// Since this string will not change when new branchpoints are added,
+    /// it is suitable for filenames that need to be consistent between runs.
+    #[inline]
+    pub fn make_compact_branch_string(&self, branch: &BranchSpec, buf: &mut String) -> Result<()> {
+        use StringMaker;
+        self.compact_branch_strs.make_string(branch, self, buf)
     }
 
     /// Create a value from its ast representation.
@@ -77,10 +109,14 @@ impl WorkflowStrings {
         Ok(())
     }
 
+    /// Add a new branchpoint to the mapping:
+    #[inline]
     pub fn add_branchpoint(&mut self, branchpoint: &str) -> Result<BranchpointId> {
         self.branchpoints.intern(branchpoint)
     }
 
+    /// Add a new branch name for the given branchpoint:
+    #[inline]
     pub fn add_branch(
         &mut self,
         _branchpoint: BranchpointId,
@@ -89,6 +125,7 @@ impl WorkflowStrings {
         self.idents.intern(branch_name)
     }
 
+    /// Log sizes of interners at debug level:
     pub fn log_sizes(&self) {
         self.log_sizes_for("Branchpoints", &self.branchpoints);
         self.log_sizes_for("Tasks", &self.tasks);
@@ -97,28 +134,24 @@ impl WorkflowStrings {
         self.log_sizes_for("Literals", &self.literals);
     }
 
+    #[inline]
     fn log_sizes_for<T: GetStr>(&self, name: &str, interner: &T) {
-        log::debug!(
-            "{} {}, str len {}",
-            interner.len(),
-            name,
-            interner.str_len()
-        );
+        log::debug!("{} {name}, str len {}", interner.len(), interner.str_len());
     }
 }
 
 // string interpolation /////////////////////
 impl WorkflowStrings {
-    /// Realize an interpolated string into `strbuf`.
+    /// Realize an interpolated string into `buf`.
     pub fn make_interpolated(
         &self,
         orig: LiteralId,
         // NB these must be in order of where they appear in the string!
         vars: &[(IdentId, LiteralId)],
-        strbuf: &mut String,
+        buf: &mut String,
     ) -> Result<()> {
         let orig_str = self.literals.get(orig)?;
-        strbuf.push_str(orig_str);
+        buf.push_str(orig_str);
 
         let mut var_str = String::with_capacity(16);
         var_str.push('$');
@@ -127,19 +160,21 @@ impl WorkflowStrings {
         // work we already did...
         let mut scan_start = 0;
         for (ident, val) in vars {
+            // strip var_str down to just the '$':
             var_str.truncate(1);
+            // add the identifier to it:
             let ident_str = self.idents.get(*ident)?;
             var_str.push_str(ident_str);
 
             let val_str = self.literals.get(*val)?;
 
-            if let Some(offset) = strbuf[scan_start..].find(&var_str) {
+            if let Some(offset) = buf[scan_start..].find(&var_str) {
                 let start = scan_start + offset;
                 let end = start + var_str.len();
-                strbuf.replace_range(start..end, val_str);
+                buf.replace_range(start..end, val_str);
                 scan_start = start + val_str.len();
             } else {
-                return Err(Error::Interp(var_str, strbuf.clone()).into());
+                return Err(Error::Interp(var_str, buf.clone()).into());
             }
         }
         Ok(())

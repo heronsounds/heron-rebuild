@@ -11,7 +11,7 @@ mod plan;
 pub use plan::{Plan, Subplan};
 
 mod branch;
-pub use branch::{BaselineBranches, BranchSpec, BranchStrs};
+pub use branch::{BaselineBranches, BranchSpec};
 
 mod id;
 pub use id::{
@@ -25,6 +25,12 @@ pub use error::{Errors, Recap, Recapper};
 mod workflow;
 pub use workflow::{SizeHints, Workflow};
 
+mod string_cache;
+pub use string_cache::{StringCache, StringMaker};
+
+mod real_task;
+pub use real_task::{RealTaskKey, RealTaskStrings};
+
 // used to separate branchpoint from branch value e.g. "Profile.debug"
 pub const BRANCH_KV_DELIM: char = '.';
 // used to separate multiple branchpoint/value pairs e.g. "Profile.debug+Os.windows"
@@ -32,7 +38,6 @@ pub const BRANCH_DELIM: char = '+';
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    // TODO this needs more info about context:
     #[error("Unsupported feature: {0}")]
     Unsupported(String),
     #[error("Plan not found: {0:?}")]
@@ -43,8 +48,6 @@ pub enum Error {
     DotParamsUnsupported,
     #[error("Unable to interpolate \"{0}\" into \"{1}\"")]
     Interp(String, String),
-    // #[error("{0} does not exist: '{1}'")]
-    // ItemNotFound(String, String),
     #[error("Plan is empty: '{0}'")]
     EmptyPlan(String),
     #[error("Module not found: {0:?}")]

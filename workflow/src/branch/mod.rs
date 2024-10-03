@@ -5,10 +5,7 @@ mod spec;
 pub use spec::BranchSpec;
 
 mod string_fns;
-pub use string_fns::parse_compact_branch_str;
-
-mod branch_strs;
-pub use branch_strs::BranchStrs;
+pub use string_fns::{parse_compact_branch_str, CompactBranchStrings, FullBranchStrings};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {

@@ -53,6 +53,29 @@ fn run_plan(plan: &str) -> Result<tempfile::TempDir> {
     Ok(output)
 }
 
+fn run_task(task: &str) -> Result<tempfile::TempDir> {
+    simple_logging::log_to_stderr(log::LevelFilter::Trace);
+    // create module dir if it doesn't exist, but only once:
+    {
+        let _lock = MODULE_LOCK.lock();
+        let module_dir = PathBuf::from(MODULE_PATH);
+        if !module_dir.exists() {
+            std::fs::create_dir(&module_dir)?;
+        }
+    }
+
+    let output = tempdir()?;
+    let mut args = basic_args(stringify_dir(&output));
+
+    // args.plan = Some(plan.to_owned());
+    args.tasks.push(task.to_owned());
+    let settings = args.try_into()?;
+    let app = App::new(settings);
+    app.run()?;
+
+    Ok(output)
+}
+
 #[test]
 fn test_basic() -> Result<()> {
     let output = run_basic()?;
@@ -248,5 +271,23 @@ fn test_plan_with_two_subplans() -> Result<()> {
     let realization = output.path().join("cargo_build/Profile.debug+Arch.x64");
     assert!(realization.exists(), "implicit task realization exists");
 
+    Ok(())
+}
+
+#[test]
+fn test_self_referential_task() -> Result<()> {
+    assert!(run_task("self_reference").is_err());
+    Ok(())
+}
+
+#[test]
+fn test_nonexistent_config() -> Result<()> {
+    assert!(run_task("nonexistent_config_val").is_err());
+    Ok(())
+}
+
+#[test]
+fn test_nonexistent_task_output() -> Result<()> {
+    assert!(run_task("nonexistent_task_output").is_err());
     Ok(())
 }

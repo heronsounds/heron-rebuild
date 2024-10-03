@@ -32,7 +32,7 @@ impl ModuleChecker {
         module_ids_to_print: &mut Vec<ModuleId>,
     ) -> Result<()> {
         if let Some(module_id) = task.module {
-            if !*self.checked.get(module_id).unwrap() {
+            if !self.is_checked(module_id) {
                 if fs.is_dir(paths.module())? {
                     self.checked.insert(module_id, true);
                     module_ids_to_print.push(module_id);
@@ -49,5 +49,9 @@ impl ModuleChecker {
             }
         }
         Ok(())
+    }
+
+    fn is_checked(&self, module_id: ModuleId) -> bool {
+        self.checked.get(module_id).copied().unwrap_or(false)
     }
 }

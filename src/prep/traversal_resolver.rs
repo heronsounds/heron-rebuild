@@ -1,12 +1,11 @@
 use std::path::Path;
 
 use anyhow::Result;
-use colored::Colorize;
 
 use intern::{GetStr, InternStr};
-use traverse::{Node, RealInput, RealOutput, RealTaskKey, Traversal, ValueContext};
+use traverse::{Node, RealInput, RealOutput, Traversal, ValueContext};
 use util::PathEncodingError;
-use workflow::{BranchStrs, Errors, IdentId, Recapper, RunStrId, TaskVars, Workflow};
+use workflow::{Errors, IdentId, RealTaskKey, Recapper, RunStrId, TaskVars, Workflow};
 
 use crate::fs::Fs;
 
@@ -63,7 +62,7 @@ impl<'a> TraversalResolver<'a> {
 
 impl TraversalResolver<'_> {
     /// NB should only be run once; if we want multiple runs for some reason need a reset fn.
-    pub fn resolve_to_actions(&mut self, mut traversal: Traversal) -> Result<Actions> {
+    pub fn resolve_to_actions(&mut self, traversal: Traversal) -> Result<Actions> {
         let mut paths = TaskDirPaths::new();
         let mut actions = Actions::new(traversal.nodes.len());
         for task in &traversal.nodes {
@@ -77,7 +76,6 @@ impl TraversalResolver<'_> {
                 &traversal.outputs_params,
                 &mut actions,
                 &mut paths,
-                &mut traversal.branch_strs,
             )?;
 
             self.should_run.push(should_run);
@@ -95,10 +93,9 @@ impl TraversalResolver<'_> {
         outputs_params: &RealOutputsParams,
         actions: &mut Actions,
         paths: &mut TaskDirPaths,
-        branch_strs: &mut BranchStrs,
     ) -> Result<bool> {
         self.var_checker.clear();
-        paths.make_paths(task, self.wf, self.fs, branch_strs, &mut self.strbuf)?;
+        paths.make_paths(task, self.wf, self.fs, &mut self.strbuf)?;
         let mut vars = TaskVars::new_with_sizes(&task.vars);
 
         // handle inputs and outputs first, since we need those even if task won't run:
@@ -106,7 +103,8 @@ impl TraversalResolver<'_> {
         let copy_outputs_to =
             self.handle_outputs(task, &mut vars.outputs, outputs_params, paths)?;
 
-        let print_id = self.make_print_id(&task.key, branch_strs)?;
+        let real_task_string = self.wf.strings.get_real_task_str(&task.key)?.to_owned();
+        let print_id = self.wf.strings.run.intern(real_task_string)?;
         let realization_id = self.make_path_id(paths.realization())?;
 
         // if task dir exists, check if it's complete; add to delete list if not:
@@ -167,7 +165,7 @@ impl TraversalResolver<'_> {
         let mut should_run = false;
         for (k, v) in &task.vars.inputs {
             self.var_checker.insert(*k);
-            let val = values.get(*v).expect("TODO");
+            let val = values.get(*v).ok_or(Error::MissingValue(*k, *v))?;
 
             match self.handle_input(val) {
                 Ok((file_id, this_input_should_run)) => {
@@ -188,7 +186,7 @@ impl TraversalResolver<'_> {
                 Ok((file_id, false))
             }
             RealInput::Task(task_id, output_id) => {
-                let actual_id = self.deduper.get_actual_task_id(*task_id);
+                let actual_id = self.deduper.get_actual_task_id(*task_id)?;
                 let file_id = self.get_task_output_string(actual_id, *output_id)?;
                 let antecedent_should_run = self.should_run[actual_id as usize];
                 Ok((file_id, antecedent_should_run))
@@ -220,7 +218,7 @@ impl TraversalResolver<'_> {
             let mut outputs_metadata = Vec::with_capacity(outputs.len());
             for (k, v) in &task.vars.outputs {
                 self.var_checker.insert(*k);
-                let val = values.get(*v).unwrap();
+                let val = values.get(*v).ok_or(Error::MissingValue(*k, *v))?;
 
                 match self.handle_module_output(val, paths) {
                     Ok((task_id, module_id)) => {
@@ -236,7 +234,7 @@ impl TraversalResolver<'_> {
         } else {
             for (k, v) in &task.vars.outputs {
                 self.var_checker.insert(*k);
-                let val = values.get(*v).unwrap();
+                let val = values.get(*v).ok_or(Error::MissingValue(*k, *v))?;
 
                 match self.handle_normal_output(val, paths) {
                     Ok(task_id) => outputs.push((*k, task_id)),
@@ -280,7 +278,7 @@ impl TraversalResolver<'_> {
     ) -> Result<()> {
         for (k, v) in &task.vars.params {
             self.var_checker.insert(*k);
-            let val = values.get(*v).unwrap();
+            let val = values.get(*v).ok_or(Error::MissingValue(*k, *v))?;
 
             match lit_str(val, self.wf, &self.wf.strings.literals, &mut self.strbuf) {
                 Ok(val_str) => {
@@ -296,26 +294,12 @@ impl TraversalResolver<'_> {
 }
 
 impl TraversalResolver<'_> {
-    /// make a user-friendly string for the task and intern it, returning its id.
-    fn make_print_id(
-        &mut self,
-        key: &RealTaskKey,
-        branch_strs: &mut BranchStrs,
-    ) -> Result<RunStrId> {
-        self.strbuf.clear();
-        self.strbuf.push_str(&self.wf.strings.tasks.get(key.id)?.cyan());
-        self.strbuf.push('[');
-        self.strbuf.push_str(branch_strs.get_or_insert(&key.branch, self.wf)?);
-        self.strbuf.push(']');
-        self.wf.strings.run.intern(&self.strbuf)
-    }
-
     /// store an error that was thrown while handling task variables:
     fn var_err(&mut self, ty: &str, k: IdentId, key: &RealTaskKey, e: anyhow::Error) -> Result<()> {
         let e = e.context(Recapper::new(ValueContext {
             ty: ty.to_owned(),
             ident: k,
-            task: key.id,
+            task: key.clone(),
         }));
         self.errors.add(e);
         Ok(())

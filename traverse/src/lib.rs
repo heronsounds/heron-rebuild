@@ -30,8 +30,8 @@ use traversal_builder::TraversalBuilder;
 
 /// useful structs, including [`Node`]
 mod node;
+pub use node::Node;
 use node::NodeBuilder;
-pub use node::{Node, RealTaskKey};
 
 mod value;
 pub use value::{RealInput, RealOutput, RealOutputOrParam, RealParam, ValueContext};

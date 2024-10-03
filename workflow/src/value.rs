@@ -36,8 +36,6 @@ pub enum Value {
     Branched(Vec<(BranchSpec, DirectValue)>),
 }
 
-// TODO these cd be added to a zero-sized struct...
-
 /// Create a `Value` from the left-hand and right-hand side ast representations.
 pub fn create_value(
     strings: &mut WorkflowStrings,

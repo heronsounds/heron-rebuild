@@ -24,6 +24,8 @@ pub enum Error {
     NotWhitelisted(String),
     #[error("Invalid branchpoints.txt file")]
     InvalidBranchpointsFile,
+    #[error("Path has no parent: {0}")]
+    NoParent(String),
 }
 
 /// All file operations in the crate should go through this struct.
@@ -115,7 +117,14 @@ impl Fs {
     /// Create parent directory of a given path.
     pub fn create_parent_dir<T: AsRef<Path>>(&self, path: T) -> Result<()> {
         let path = path.as_ref();
-        let parent = path.parent().unwrap();
+        let parent = match path.parent() {
+            Some(parent) => parent,
+            None => {
+                let path_str = path.to_str().ok_or(PathEncodingError)?.to_owned();
+                return Err(Error::NoParent(path_str).into());
+            }
+        };
+
         self.check_whitelist(parent)?;
         fs::create_dir_all(parent).context("creating parent dir")?;
         Ok(())

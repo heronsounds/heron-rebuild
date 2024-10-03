@@ -45,7 +45,6 @@ impl Fs {
         strbuf: &mut String,
     ) -> Result<()> {
         if self.exists(branchpoints_file) {
-            // TODO save a backup in case the app crashes here...
             self.delete_file(branchpoints_file)?;
         }
         strbuf.clear();
