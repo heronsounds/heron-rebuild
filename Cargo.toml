@@ -43,24 +43,23 @@ combine = "4.5"
 rustc-hash = "1.1"
 hashbrown = "0.14"
 log = "0.4"
-# log.features = ["release_max_level_warn"]
 colored = "2.1"
 
 [dependencies]
-syntax = { workspace = true }
-intern = { workspace = true }
-util = { workspace = true }
-workflow = { workspace = true }
+syntax.workspace = true
+intern.workspace = true
+util.workspace = true
+workflow.workspace = true
 
 # non-workspace internal dependencies:
 traverse = { version = "0.2.0", path = "traverse", package = "heron-rebuild-traverse" }
 
-thiserror = { workspace = true }
-anyhow = { workspace = true }
-hashbrown = { workspace = true }
-rustc-hash = { workspace = true }
-colored = { workspace = true }
-log = { workspace = true }
+thiserror.workspace = true
+anyhow.workspace = true
+hashbrown.workspace = true
+rustc-hash.workspace = true
+colored.workspace = true
+log.workspace = true
 
 # non-workspace external dependencies:
 simple-logging = "2.0"
